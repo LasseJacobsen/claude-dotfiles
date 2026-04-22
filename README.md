@@ -41,15 +41,25 @@ Copy individual files into a project's `.claude/` directory and adjust as needed
 
 Code intelligence across 40+ languages via LSP. Gives Claude semantic search, go-to-definition, find-references, and symbol navigation inside any project.
 
-**Dependency:** [`uv`](https://github.com/astral-sh/uv) — language servers are fetched automatically by Serena on first use (no separate Node.js or LSP install needed).
+**Dependency:** [`uv`](https://github.com/astral-sh/uv) — install once, language servers are fetched automatically by Serena on first use.
 
-The config in `settings.json` uses `--project-from-cwd` so Serena always targets the active project directory, making it safe to symlink globally.
+```powershell
+# Windows
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+# Then restart your terminal so uv is on PATH
+```
+
+The config uses `--project-from-cwd` so Serena auto-detects the active project, making it safe to use as a global config.
 
 To update Serena to the latest version, clear the `uvx` cache:
 
 ```bash
 uv cache clean
 ```
+
+**Windows notes:**
+- Symlinks for files require admin or [Developer Mode](https://learn.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development). If neither is available, copy `settings.json` to `%USERPROFILE%\.claude\settings.json` manually and re-copy after changes.
+- `uv` installs to `~/.local/bin` — make sure it's on your PATH before Claude Code starts.
 
 ## Hooks
 
