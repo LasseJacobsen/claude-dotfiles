@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run --script hooks/black_format.py"
+            "command": "uv run --script \"$HOME/.claude/hooks/black_format.py\""
           }
         ]
       }
