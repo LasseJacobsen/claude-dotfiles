@@ -39,5 +39,20 @@ done
 log "Warming Serena uvx cache..."
 uvx --from git+https://github.com/oraios/serena serena --version || true
 
+# pyright (Serena's Python language server) needs Node.js to run.
+# Its default nodeenv fallback fails on some systems (notably Windows).
+# Installing the nodejs-wheel-binaries extra directly into Serena's env fixes this.
+# Note: --with pyright[nodejs] in uvx args does not work here because pyright is
+# launched as a subprocess by serena and does not inherit the uvx overlay's packages.
+log "Installing pyright[nodejs] into Serena's env..."
+SERENA_PYTHON=$(uvx --from git+https://github.com/oraios/serena python \
+  -c "import sys; print(sys.executable)" 2>/dev/null || true)
+if [[ -n "$SERENA_PYTHON" ]]; then
+  uv pip install --python "$SERENA_PYTHON" "pyright[nodejs]" --quiet
+  log "pyright[nodejs] installed"
+else
+  log "Warning: could not locate Serena Python — pyright language server may not start"
+fi
+
 log ""
 log "Done. Start a new Claude Code session to activate Serena and hooks."
