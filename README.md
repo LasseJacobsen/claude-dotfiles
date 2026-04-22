@@ -35,6 +35,22 @@ ln -sf ~/claude-dotfiles/commands ~/.claude/commands
 
 Copy individual files into a project's `.claude/` directory and adjust as needed.
 
+## MCP Servers
+
+### Serena
+
+Code intelligence across 40+ languages via LSP. Gives Claude semantic search, go-to-definition, find-references, and symbol navigation inside any project.
+
+**Dependency:** [`uv`](https://github.com/astral-sh/uv) — language servers are fetched automatically by Serena on first use (no separate Node.js or LSP install needed).
+
+The config in `settings.json` uses `--project-from-cwd` so Serena always targets the active project directory, making it safe to symlink globally.
+
+To update Serena to the latest version, clear the `uvx` cache:
+
+```bash
+uv cache clean
+```
+
 ## Hooks
 
 ### `hooks/black_format.py`
