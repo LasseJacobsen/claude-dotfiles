@@ -6,7 +6,7 @@ Reusable Claude Code configuration, hooks, skills, and commands — versioned as
 
 ```
 claude-dotfiles/
-├── CLAUDE.md                        # Global behaviour & commit conventions
+├── CLAUDE.md                        # Non-obvious overrides (commit rules)
 ├── settings.json                    # Claude Code settings (hooks, permissions)
 ├── hooks/
 │   └── black_format.py              # PostToolUse hook: auto-format Python with black
@@ -60,8 +60,3 @@ header.
 |---------|-------------|
 | `/user:commit` | Stage and commit with a well-formed message, no AI footers |
 
-## Conventions (from CLAUDE.md)
-
-- Commit messages: short imperative subject, no trailers, no AI footers.
-- Python auto-formatted by black via the PostToolUse hook.
-- No features added beyond what is asked; no unnecessary comments.
