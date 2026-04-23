@@ -35,6 +35,9 @@ for hook in "$REPO/hooks/"*; do
   log "Copied hook: $(basename "$hook")"
 done
 
+# Ensure all hook scripts are executable (git drops +x across some transfers)
+find "$TARGET/hooks" -type f \( -name '*.sh' -o -name '*.py' \) -exec chmod +x {} +
+
 # Warm the uvx cache for Serena so the first MCP startup is fast
 log "Warming Serena uvx cache..."
 uvx --from git+https://github.com/oraios/serena serena --version || true
