@@ -38,6 +38,23 @@ done
 # Ensure all hook scripts are executable (git drops +x across some transfers)
 find "$TARGET/hooks" -type f \( -name '*.sh' -o -name '*.py' \) -exec chmod +x {} +
 
+# Commands — copy individually so /user:* commands work from any project
+mkdir -p "$TARGET/commands"
+for cmd_file in "$REPO/commands/"*; do
+  [[ -f "$cmd_file" ]] || continue
+  cp "$cmd_file" "$TARGET/commands/$(basename "$cmd_file")"
+  log "Copied command: $(basename "$cmd_file")"
+done
+
+# Skills — copy directory structure so skills are available globally
+mkdir -p "$TARGET/skills"
+for skill_dir in "$REPO/skills/"*/; do
+  [[ -d "$skill_dir" ]] || continue
+  skill_name=$(basename "${skill_dir%/}")
+  cp -r "${skill_dir%/}" "$TARGET/skills/"
+  log "Copied skill: $skill_name"
+done
+
 # Warm the uvx cache for Serena so the first MCP startup is fast
 log "Warming Serena uvx cache..."
 uvx --from git+https://github.com/oraios/serena serena --version || true
