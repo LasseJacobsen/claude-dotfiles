@@ -17,7 +17,8 @@ deny_patterns=(
 
 for p in "${deny_patterns[@]}"; do
   if echo "$cmd" | grep -qE "$p"; then
-    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked by safety policy: matches pattern /%s/"}}\n' "$p"
+    jq -cn --arg reason "Blocked by safety policy: matches pattern /$p/" \
+      '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":$reason}}'
     exit 0
   fi
 done

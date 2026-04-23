@@ -6,16 +6,23 @@ Reusable Claude Code configuration, hooks, skills, and commands — versioned as
 
 ```
 claude-dotfiles/
-├── CLAUDE.md                        # Non-obvious overrides (commit rules)
-├── settings.json                    # Claude Code settings (MCP servers, hooks)
-├── install.sh                       # One-shot setup script
+├── CLAUDE.md                           # Non-obvious overrides (commit rules, naming)
+├── settings.json                       # Claude Code settings (MCP servers, hooks, permissions)
+├── install.sh                          # One-shot setup script
 ├── hooks/
-│   └── black_format.py              # PostToolUse hook: auto-format Python with black
+│   ├── block-destructive.sh            # PreToolUse: block rm -rf /, force-push, fork bombs, etc.
+│   ├── block-git-main.sh               # PreToolUse: block direct commits/pushes to main/master/prod
+│   ├── block-big-binaries.py           # PreToolUse: block committing large or binary result files
+│   ├── enforce-uv.py                   # PreToolUse: redirect pip/poetry/conda → uv
+│   ├── ruff-after-edit.sh              # PostToolUse: ruff lint+format on every .py edit
+│   ├── ty-check.sh                     # PostToolUse: ty type-check on every .py edit
+│   ├── nbstripout.sh                   # PostToolUse: strip notebook outputs on .ipynb edits
+│   └── check-claims.sh                 # Stop: block uncertain/speculative responses
 ├── skills/
 │   └── git-pr-message/
-│       └── SKILL.md                 # Skill: generate PR descriptions from git log
+│       └── SKILL.md                    # Skill: generate PR descriptions from git log
 ├── commands/
-│   └── commit.md                    # /user:commit — guided commit helper
+│   └── commit.md                       # /user:commit — guided commit helper
 └── README.md
 ```
 
@@ -27,10 +34,12 @@ cd ~/claude-dotfiles
 bash install.sh
 ```
 
-`install.sh` does three things:
+`install.sh` does five things:
 1. Symlinks (or copies) `settings.json` and `CLAUDE.md` into `~/.claude/`
 2. Copies hooks into `~/.claude/hooks/`
-3. Warms the Serena uvx cache so the first session starts quickly
+3. Copies commands into `~/.claude/commands/`
+4. Copies skills into `~/.claude/skills/`
+5. Warms the Serena uvx cache so the first session starts quickly
 
 Then **start a new Claude Code session** — MCP servers and hooks are loaded at startup.
 
@@ -40,10 +49,10 @@ Then **start a new Claude Code session** — MCP servers and hooks are loaded at
 - `uv` installs to `~/.local/bin` — make sure it's on your PATH before starting Claude Code.
 - Run `install.sh` in Git Bash (not PowerShell/cmd).
 
-### Updating hooks after changes
+### Updating after changes
 
 ```bash
-bash install.sh   # re-copies hooks to ~/.claude/hooks/
+bash install.sh   # re-copies hooks, commands, and skills to ~/.claude/
 ```
 
 If settings.json was symlinked, changes take effect immediately. If it was copied, re-run `install.sh`.
@@ -84,15 +93,30 @@ uv cache clean   # forces a fresh fetch from GitHub on next session start
 
 ## Hooks
 
-### `hooks/black_format.py`
+Hooks live in `~/.claude/hooks/` (placed there by `install.sh`) and run deterministically on every matching tool call — no Claude judgement involved. PreToolUse hooks output a structured JSON deny decision and exit 0; blocking PostToolUse/Stop hooks exit 2 to feed errors back to Claude.
 
-Runs after every `Edit` or `Write` tool call. If the file is a `.py` file, `black` formats it in-place. Requires `uv` on PATH; `black` is fetched automatically via the PEP 723 script header.
+### PreToolUse
 
-The hook runs from `~/.claude/hooks/black_format.py` (placed there by `install.sh`).
+| Hook | Trigger | What it blocks |
+|------|---------|----------------|
+| `block-destructive.sh` | Any `Bash` | `rm -rf /`, `rm -rf ~`, `git push --force`, `chmod -R 777`, pipe-to-shell, fork bomb, `DROP TABLE` |
+| `block-git-main.sh` | Any `Bash` | `git commit`/`push` while on `main`, `master`, `prod`, or `production` |
+| `block-big-binaries.py` | `git add` / `git commit -a` | Files >50 MB or with binary result extensions (`.h5`, `.vtk`, `.pkl`, `.npz`, etc.) |
+| `enforce-uv.py` | Any `Bash` | `pip install` → `uv add`, `python -m pytest` → `uv run pytest`, `poetry add` → `uv add`, etc. |
 
-```json
-"PostToolUse": [{ "matcher": "Edit|Write", "hooks": [{ "type": "command", "command": "uv run --script \"$HOME/.claude/hooks/black_format.py\"" }] }]
-```
+### PostToolUse
+
+| Hook | Trigger | What it does |
+|------|---------|--------------|
+| `ruff-after-edit.sh` | `Write`/`Edit`/`MultiEdit` on `.py` | Runs `ruff check --fix` then `ruff format` in-place; always exits 0 |
+| `ty-check.sh` | `Write`/`Edit`/`MultiEdit` on `.py` | Runs `ty check`; exits 2 if type errors found so Claude retries |
+| `nbstripout.sh` | `Write`/`Edit`/`MultiEdit`/`NotebookEdit` on `.ipynb` | Strips cell outputs via `nbstripout`; always exits 0 |
+
+### Stop
+
+| Hook | What it does |
+|------|--------------|
+| `check-claims.sh` | Scans the last 20 lines of the transcript for uncertain phrases ("I can't access", "probably", "from memory", "I think", "if you could share") and blocks completion if found |
 
 ---
 
