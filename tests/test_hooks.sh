@@ -327,12 +327,19 @@ printf '{"role":"assistant","content":"From memory, this should be around 42."}\
 THINK_TRANSCRIPT="$TRANSCRIPT_DIR/think.jsonl"
 printf '{"role":"assistant","content":"I think this approach will work."}\n' > "$THINK_TRANSCRIPT"
 
+# Phrase appears inside a tool payload (not the assistant response) — must NOT trigger
+TOOL_TRANSCRIPT="$TRANSCRIPT_DIR/tool.jsonl"
+printf '{"role":"user","content":"please write me a file"}\n' > "$TOOL_TRANSCRIPT"
+printf '{"role":"tool","content":"I cannot access the remote file system."}\n' >> "$TOOL_TRANSCRIPT"
+printf '{"role":"assistant","content":"Done — the file has been written."}\n' >> "$TOOL_TRANSCRIPT"
+
 assert_sh_exit 0 "$CCS" "$(stop_payload true  '/nonexistent')"  "skips when stop_hook_active=true"
 assert_sh_exit 0 "$CCS" "$(stop_payload false '/nonexistent')"  "skips when transcript missing"
-assert_sh_exit 2 "$CCS" "$(stop_payload false "$BAD_TRANSCRIPT")"   "blocks 'cannot access'"
-assert_sh_exit 2 "$CCS" "$(stop_payload false "$MEM_TRANSCRIPT")"   "blocks 'from memory'"
-assert_sh_exit 2 "$CCS" "$(stop_payload false "$THINK_TRANSCRIPT")" "blocks 'I think'"
-assert_sh_exit 0 "$CCS" "$(stop_payload false "$GOOD_TRANSCRIPT")"  "allows clean response"
+assert_sh_exit 2 "$CCS" "$(stop_payload false "$BAD_TRANSCRIPT")"    "blocks 'cannot access'"
+assert_sh_exit 2 "$CCS" "$(stop_payload false "$MEM_TRANSCRIPT")"    "blocks 'from memory'"
+assert_sh_exit 2 "$CCS" "$(stop_payload false "$THINK_TRANSCRIPT")"  "blocks 'I think'"
+assert_sh_exit 0 "$CCS" "$(stop_payload false "$GOOD_TRANSCRIPT")"   "allows clean response"
+assert_sh_exit 0 "$CCS" "$(stop_payload false "$TOOL_TRANSCRIPT")"   "ignores flagged phrase in tool payload (not assistant response)"
 
 # ── pytest-lf.sh ─────────────────────────────────────────────────────────────
 section "pytest-lf.sh"
