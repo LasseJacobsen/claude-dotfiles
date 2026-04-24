@@ -156,8 +156,9 @@ else
   assert_hook_exit 2 "$EUV" "$(cmd_payload 'cd project && pytest')"   "blocks bare pytest after &&"
   assert_hook_exit 0 "$EUV" "$(cmd_payload 'uv add numpy')"           "allows uv add"
   assert_hook_exit 0 "$EUV" "$(cmd_payload 'uv run pytest')"          "allows uv run pytest"
-  assert_hook_exit 0 "$EUV" "$(cmd_payload 'uv run pytest --lf')"     "allows uv run pytest with flags"
-  assert_hook_exit 0 "$EUV" "$(cmd_payload 'git status')"             "allows unrelated command"
+  assert_hook_exit 0 "$EUV" "$(cmd_payload 'uv run pytest --lf')"                              "allows uv run pytest with flags"
+  assert_hook_exit 0 "$EUV" "$(cmd_payload 'git status')"                                      "allows unrelated command"
+  assert_hook_exit 0 "$EUV" "$(cmd_payload 'gh pr create --body "run pip install to set up"')" "allows pip install inside argument string"
 fi
 
 # ── block-git-main.sh ─────────────────────────────────────────────────────────
@@ -372,20 +373,24 @@ fi
 section "precompact-backup.sh"
 PCB="precompact-backup.sh"
 
-FAKE_TRANSCRIPT="$TMPDIR_BASE/session.jsonl"
-echo '{"role":"user","content":"hello"}' > "$FAKE_TRANSCRIPT"
-
-BACKUP_BEFORE=$(find "$HOME/.claude/backups" -name "compact-*.jsonl" 2>/dev/null | wc -l)
-assert_sh_exit 0 "$PCB" "$(compact_payload false  "$FAKE_TRANSCRIPT")" "exits 0 and backs up transcript"
-BACKUP_AFTER=$(find "$HOME/.claude/backups" -name "compact-*.jsonl" 2>/dev/null | wc -l)
-
-assert_sh_exit 0 "$PCB" "$(compact_payload false  '/nonexistent')"      "exits 0 when transcript missing"
-assert_sh_exit 0 "$PCB" "$(compact_payload true   '/nonexistent')"      "exits 0 when precompact_hook_active=true"
-
-if [[ "$BACKUP_AFTER" -gt "$BACKUP_BEFORE" ]]; then
-  ok "backup file created in ~/.claude/backups/"
+if ! $HAS_JQ; then
+  skip "jq not in PATH — precompact-backup.sh uses jq internally; install jq to run these tests"
 else
-  fail "no new backup file in ~/.claude/backups/ (had $BACKUP_BEFORE, now $BACKUP_AFTER)"
+  FAKE_TRANSCRIPT="$TMPDIR_BASE/session.jsonl"
+  echo '{"role":"user","content":"hello"}' > "$FAKE_TRANSCRIPT"
+
+  BACKUP_BEFORE=$(find "$HOME/.claude/backups" -name "compact-*.jsonl" 2>/dev/null | wc -l)
+  assert_sh_exit 0 "$PCB" "$(compact_payload false  "$FAKE_TRANSCRIPT")" "exits 0 and backs up transcript"
+  BACKUP_AFTER=$(find "$HOME/.claude/backups" -name "compact-*.jsonl" 2>/dev/null | wc -l)
+
+  assert_sh_exit 0 "$PCB" "$(compact_payload false  '/nonexistent')"      "exits 0 when transcript missing"
+  assert_sh_exit 0 "$PCB" "$(compact_payload true   '/nonexistent')"      "exits 0 when precompact_hook_active=true"
+
+  if [[ "$BACKUP_AFTER" -gt "$BACKUP_BEFORE" ]]; then
+    ok "backup file created in ~/.claude/backups/"
+  else
+    fail "no new backup file in ~/.claude/backups/ (had $BACKUP_BEFORE, now $BACKUP_AFTER)"
+  fi
 fi
 
 # ── protect-secrets.sh ───────────────────────────────────────────────────────

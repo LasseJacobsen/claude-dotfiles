@@ -42,13 +42,14 @@ bash install.sh
 ```
 
 `install.sh` does the following:
-1. Symlinks (or copies) `settings.json` and `CLAUDE.md` into `~/.claude/`
-2. Copies hooks into `~/.claude/hooks/`
-3. Copies commands into `~/.claude/commands/`
-4. Copies skills into `~/.claude/skills/`
-5. Seeds `~/.claude/settings.local.json` from `settings.local.example.json` on first run
-6. Reinstalls plugins listed in `plugins-installed.txt`
-7. Warms the Serena uvx cache
+1. Auto-installs `jq` if missing (winget / brew / apt / yum)
+2. Symlinks (or copies) `settings.json` and `CLAUDE.md` into `~/.claude/`
+3. Copies hooks into `~/.claude/hooks/`
+4. Copies commands into `~/.claude/commands/`
+5. Copies skills into `~/.claude/skills/`
+6. Seeds `~/.claude/settings.local.json` from `settings.local.example.json` on first run
+7. Reinstalls plugins listed in `plugins-installed.txt`
+8. Warms the Serena uvx cache and installs `pyright[nodejs]` into Serena's env
 
 Then **start a new Claude Code session** — MCP servers and hooks are loaded at startup.
 
@@ -57,7 +58,7 @@ Then **start a new Claude Code session** — MCP servers and hooks are loaded at
 - Symlinks for files require [Developer Mode](https://learn.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development) or admin. Without it, `install.sh` falls back to copying — re-run after changes.
 - `uv` installs to `~/.local/bin` — make sure it's on your PATH before starting Claude Code.
 - Run `install.sh` in Git Bash (not PowerShell/cmd).
-- Several hooks (`block-destructive.sh`, `block-git-main.sh`, `ruff-after-edit.sh`, `ty-check.sh`, `nbstripout.sh`) require `jq`. Claude Code ships jq in its bundled environment; if you also want to run `make test` from Git Bash, install jq separately:
+- Several hooks require `jq`. Claude Code ships jq in its bundled environment so hooks always work in sessions. `install.sh` installs jq automatically via `winget`; if that fails, install it manually before running `make test`:
   ```
   winget install jqlang.jq
   ```
