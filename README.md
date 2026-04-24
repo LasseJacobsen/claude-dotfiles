@@ -8,7 +8,10 @@ Reusable Claude Code configuration, hooks, skills, and commands — versioned as
 claude-dotfiles/
 ├── CLAUDE.md                           # Non-obvious overrides (commit rules, naming)
 ├── settings.json                       # Claude Code settings (MCP servers, hooks, permissions)
+├── settings.local.example.json         # Template for machine-specific overrides
+├── plugins-installed.txt               # Plugins reinstalled by install.sh on new machines
 ├── install.sh                          # One-shot setup script
+├── Makefile                            # make install / make test
 ├── hooks/
 │   ├── block-destructive.sh            # PreToolUse: block rm -rf /, force-push, fork bombs, etc.
 │   ├── block-git-main.sh               # PreToolUse: block direct commits/pushes to main/master/prod
@@ -17,13 +20,17 @@ claude-dotfiles/
 │   ├── ruff-after-edit.sh              # PostToolUse: ruff lint+format on every .py edit
 │   ├── ty-check.sh                     # PostToolUse: ty type-check on every .py edit
 │   ├── nbstripout.sh                   # PostToolUse: strip notebook outputs on .ipynb edits
-│   └── check-claims.sh                 # Stop: block uncertain/speculative responses
+│   ├── check-claims.sh                 # Stop: block uncertain/speculative responses
+│   ├── precompact-backup.sh            # PreCompact: back up transcript before context compaction
+│   └── pytest-lf.sh                    # PostToolUse (opt-in): run failing tests after .py edits
 ├── skills/
 │   └── git-pr-message/
 │       └── SKILL.md                    # Skill: generate PR descriptions from git log
 ├── commands/
-│   └── commit.md                       # /user:commit — guided commit helper
-└── README.md
+│   ├── commit.md                       # /user:commit — guided commit helper
+│   └── pr.md                           # /user:pr — generate and open a pull request
+└── tests/
+    └── test_hooks.sh                   # Unit tests for all hooks
 ```
 
 ## Setup (new machine)
@@ -34,28 +41,57 @@ cd ~/claude-dotfiles
 bash install.sh
 ```
 
-`install.sh` does five things:
+`install.sh` does the following:
 1. Symlinks (or copies) `settings.json` and `CLAUDE.md` into `~/.claude/`
 2. Copies hooks into `~/.claude/hooks/`
 3. Copies commands into `~/.claude/commands/`
 4. Copies skills into `~/.claude/skills/`
-5. Warms the Serena uvx cache so the first session starts quickly
+5. Seeds `~/.claude/settings.local.json` from `settings.local.example.json` on first run
+6. Reinstalls plugins listed in `plugins-installed.txt`
+7. Warms the Serena uvx cache
 
 Then **start a new Claude Code session** — MCP servers and hooks are loaded at startup.
 
 ### Windows notes
 
-- Symlinks for files require [Developer Mode](https://learn.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development) or admin. Without it, `install.sh` falls back to copying files — re-run after changes.
+- Symlinks for files require [Developer Mode](https://learn.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development) or admin. Without it, `install.sh` falls back to copying — re-run after changes.
 - `uv` installs to `~/.local/bin` — make sure it's on your PATH before starting Claude Code.
 - Run `install.sh` in Git Bash (not PowerShell/cmd).
+- Several hooks (`block-destructive.sh`, `block-git-main.sh`, `ruff-after-edit.sh`, `ty-check.sh`, `nbstripout.sh`) require `jq`. Claude Code ships jq in its bundled environment; if you also want to run `make test` from Git Bash, install jq separately:
+  ```
+  winget install jqlang.jq
+  ```
 
 ### Updating after changes
 
 ```bash
-bash install.sh   # re-copies hooks, commands, and skills to ~/.claude/
+bash install.sh   # or: make install
 ```
 
-If settings.json was symlinked, changes take effect immediately. If it was copied, re-run `install.sh`.
+If settings.json was symlinked, changes take effect immediately. If it was copied, re-run.
+
+### Machine-specific overrides
+
+Copy the example template after install and fill in machine-specific values:
+
+```bash
+cp settings.local.example.json ~/.claude/settings.local.json
+# Edit ~/.claude/settings.local.json — add additionalDirectories, per-machine allow rules, etc.
+```
+
+`settings.local.json` is gitignored in all projects; it never gets committed.
+
+---
+
+## Testing hooks
+
+Run the test suite from the dotfiles root:
+
+```bash
+bash tests/test_hooks.sh   # or: make test
+```
+
+Tests pipe crafted JSON payloads into each hook and assert exit codes and JSON output. Hooks that rely on `jq` internally are skipped if jq isn't in PATH (all tests still pass — they're reported as SKIP). Install jq to unlock full coverage.
 
 ---
 
@@ -72,16 +108,44 @@ Code intelligence across 40+ languages via LSP. Gives Claude semantic search, go
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-Serena is configured globally in `settings.json`, so **every project gets it automatically** — no per-project setup needed. The `--project-from-cwd` flag means Serena auto-detects the active project.
+Serena is configured globally in `settings.json`, so **every project gets it automatically** — no per-project setup needed. The `--project-from-cwd` flag means Serena auto-detects the active project directory when a Claude Code session starts.
+
+#### First-time startup
+
+The first time Serena runs in a project it downloads dependencies via uvx (~30 seconds) and indexes the project (~5–60 seconds depending on size). Subsequent starts are fast. `install.sh` pre-warms the uvx download so only the indexing happens on first use.
 
 #### Verifying Serena is running
 
-In a Claude Code session, run `/mcp` — `serena` should appear with status `connected`. Or ask Claude to use a Serena tool like `search_for_pattern`.
+In a Claude Code session, run `/mcp` — `serena` should appear with status `connected`. Or ask Claude to call a Serena tool directly: *"use serena to search for function X"*.
 
-If Serena doesn't appear:
-1. Confirm `settings.json` is in `~/.claude/` (run `install.sh` if not)
-2. Start a **new** Claude Code session — MCP servers are loaded at startup
-3. Check that `uv` is on PATH: `uv --version`
+#### Troubleshooting
+
+**Serena doesn't appear in `/mcp`:**
+
+1. Confirm `~/.claude/settings.json` has the `serena` MCP entry — re-run `install.sh` if missing.
+2. Start a **new** Claude Code session — MCP servers load at startup, not mid-session.
+3. Check that `uv` is on PATH: `uv --version`. If missing, re-install uv and re-run `install.sh`.
+
+**Serena appears but shows as disconnected / errors on tool calls:**
+
+1. Clear the uvx cache and reinstall: `uv cache clean && bash install.sh`
+2. On Windows, verify pyright's Node.js dependency was installed. `install.sh` does this automatically, but if it failed silently check the install output for warnings. Re-run `install.sh` to retry.
+3. Check for a `.serena/` directory in your project root — Serena creates it on first index. If it's absent, Serena may not have finished starting. Wait ~60s after opening the session.
+
+**Serena is slow / hangs on large repos:**
+
+Serena indexes all files on startup. For repos > 50k files, add a `.serena/config.yaml` to limit scope:
+
+```yaml
+project_root: .
+exclude_dirs:
+  - .git
+  - node_modules
+  - __pycache__
+  - .venv
+  - dist
+  - build
+```
 
 #### Updating Serena
 
@@ -93,7 +157,7 @@ uv cache clean   # forces a fresh fetch from GitHub on next session start
 
 ## Hooks
 
-Hooks live in `~/.claude/hooks/` (placed there by `install.sh`) and run deterministically on every matching tool call — no Claude judgement involved. PreToolUse hooks output a structured JSON deny decision and exit 0; blocking PostToolUse/Stop hooks exit 2 to feed errors back to Claude.
+Hooks live in `~/.claude/hooks/` and run deterministically on every matching tool call — no Claude judgement involved. PreToolUse hooks output a structured JSON deny decision and exit 0; blocking PostToolUse/Stop hooks exit 2 to feed errors back to Claude.
 
 ### PreToolUse
 
@@ -102,7 +166,8 @@ Hooks live in `~/.claude/hooks/` (placed there by `install.sh`) and run determin
 | `block-destructive.sh` | Any `Bash` | `rm -rf /`, `rm -rf ~`, `git push --force`, `chmod -R 777`, pipe-to-shell, fork bomb, `DROP TABLE` |
 | `block-git-main.sh` | Any `Bash` | `git commit`/`push` while on `main`, `master`, `prod`, or `production` |
 | `block-big-binaries.py` | `git add` / `git commit -a` | Files >50 MB or with binary result extensions (`.h5`, `.vtk`, `.pkl`, `.npz`, etc.) |
-| `enforce-uv.py` | Any `Bash` | `pip install` → `uv add`, `python -m pytest` → `uv run pytest`, `poetry add` → `uv add`, etc. |
+| `enforce-uv.py` | Any `Bash` | `pip install` → `uv add`, bare `pytest` → `uv run pytest`, `poetry add` → `uv add`, etc. |
+| `protect-secrets.sh` | Any `Bash` | `cat`/`less`/`head`/`tail` on `.env*`, `*.pem`, `*.key`, `credentials.json`, `.ssh/` paths (Bash bypass of `permissions.deny` — issue #6631) |
 
 ### PostToolUse
 
@@ -110,13 +175,38 @@ Hooks live in `~/.claude/hooks/` (placed there by `install.sh`) and run determin
 |------|---------|--------------|
 | `ruff-after-edit.sh` | `Write`/`Edit`/`MultiEdit` on `.py` | Runs `ruff check --fix` then `ruff format` in-place; always exits 0 |
 | `ty-check.sh` | `Write`/`Edit`/`MultiEdit` on `.py` | Runs `ty check`; exits 2 if type errors found so Claude retries |
-| `nbstripout.sh` | `Write`/`Edit`/`MultiEdit`/`NotebookEdit` on `.ipynb` | Strips cell outputs via `nbstripout`; always exits 0 |
+| `nbstripout.sh` | `Write`/`Edit`/`MultiEdit`/`NotebookEdit` on `*/notebooks/*.ipynb` | Strips cell outputs via `nbstripout`; always exits 0. Scoped to `notebooks/` so scratch notebooks keep their outputs for iterative work. |
+
+#### Opt-in: pytest on save (`pytest-lf.sh`)
+
+`pytest-lf.sh` is available but **not enabled by default** (can be slow for large suites). To enable, add it to `settings.json` under `PostToolUse`:
+
+```json
+{
+  "matcher": "Write|Edit|MultiEdit",
+  "hooks": [{ "type": "command", "command": "bash \"$HOME/.claude/hooks/pytest-lf.sh\"", "timeout": 60 }]
+}
+```
+
+The hook skips automatically when there's no `tests/` directory or pytest isn't installed in the project venv.
 
 ### Stop
 
 | Hook | What it does |
 |------|--------------|
-| `check-claims.sh` | Scans the last 20 lines of the transcript for uncertain phrases ("I can't access", "probably", "from memory", "I think", "if you could share") and blocks completion if found |
+| `check-claims.sh` | Parses the transcript JSONL to extract the last assistant text block and checks it for uncertain/speculative phrases ("I can't access", "probably", "from memory", "I think", "if you could share/provide"). Blocks completion if found. Ignores tool results and file payloads that happen to contain those phrases. |
+
+### PreCompact
+
+| Hook | What it does |
+|------|--------------|
+| `precompact-backup.sh` | Copies the current transcript to `~/.claude/backups/compact-<timestamp>.jsonl` before Claude compacts the context window |
+
+---
+
+## Project-level settings (`.claude/settings.json`)
+
+The `.claude/settings.json` inside this repo is a *project-level* settings file — it applies when Claude Code is run from inside the dotfiles directory itself. It contains only the Serena MCP entry so that Serena works here too. Hooks, permissions, and env vars live in the root `settings.json` that `install.sh` deploys to `~/.claude/settings.json`; those apply globally to every project.
 
 ---
 
@@ -131,3 +221,4 @@ Hooks live in `~/.claude/hooks/` (placed there by `install.sh`) and run determin
 | Command | Description |
 |---------|-------------|
 | `/user:commit` | Stage and commit with a well-formed message, no AI footers |
+| `/user:pr` | Generate a PR title/body from git log and open the PR with `gh` |

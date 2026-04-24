@@ -1,0 +1,6 @@
+# One plugin ID per line. install.sh reinstalls these on a new machine.
+# Find plugin IDs via: claude plugin list --available
+# or the plugin marketplace at https://www.anthropic.com/products/claude-code/plugins
+#
+# Example — Astral ruff / ty / uv skills:
+# astral-sh-astral-plugins-astral@astral-sh/claude-code-plugins

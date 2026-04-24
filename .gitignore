@@ -1,1 +1,33 @@
-.serena/
+# Allowlist: ignore everything, then re-include what belongs here.
+# Prevents accidentally committing session data, credentials, or temp files.
+*
+
+# Meta
+!.gitignore
+!.gitattributes
+
+# Claude Code config
+!CLAUDE.md
+!settings.json
+!settings.local.example.json
+!plugins-installed.txt
+!.claude/
+!.claude/**
+
+# Scripts
+!install.sh
+!Makefile
+
+# Docs
+!README.md
+!research.md
+
+# Source directories
+!hooks/
+!hooks/**
+!commands/
+!commands/**
+!skills/
+!skills/**
+!tests/
+!tests/**
