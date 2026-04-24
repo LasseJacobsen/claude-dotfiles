@@ -3,11 +3,11 @@ input=$(cat)
 cmd=$(echo "$input" | jq -r '.tool_input.command // empty')
 
 deny_patterns=(
-  'rm[[:space:]]+-[rRfF]*[[:space:]]+/(\s|$)'
-  'rm[[:space:]]+-[rRfF]*[[:space:]]+~(\s|$)'
-  'rm[[:space:]]+-[rRfF]*[[:space:]]+\$HOME'
+  'rm[[:space:]]+-[fF]*[rR][rRfF]*[[:space:]]+/(\s|$)'
+  'rm[[:space:]]+-[fF]*[rR][rRfF]*[[:space:]]+~(\s|$)'
+  'rm[[:space:]]+-[fF]*[rR][rRfF]*[[:space:]]+\$HOME'
   'git[[:space:]]+push[[:space:]]+.*--force(\s|$)'
-  'git[[:space:]]+push[[:space:]]+-f(\s|$)'
+  'git[[:space:]]+push.*[[:space:]]-f(\s|$)'
   'git[[:space:]]+reset[[:space:]]+--hard[[:space:]]+origin'
   'chmod[[:space:]]+-R[[:space:]]+777'
   ':\(\)\{.*\|:&.*\};:'

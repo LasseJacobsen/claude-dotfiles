@@ -133,6 +133,7 @@ else
   assert_deny  "$BD" "$(cmd_payload ':(){:|:&};:')"                      "blocks fork bomb"
   assert_allow "$BD" "$(cmd_payload 'rm -f temp.txt')"                  "allows rm -f"
   assert_allow "$BD" "$(cmd_payload 'rm -rf /tmp/my-test-build')"       "allows rm -rf /tmp/..."
+  assert_deny  "$BD" "$(cmd_payload 'git push origin -f')"               "blocks git push origin -f"
   assert_allow "$BD" "$(cmd_payload 'git push origin feature-branch')"  "allows normal push"
   assert_allow "$BD" "$(cmd_payload 'git push --force-with-lease')"     "allows --force-with-lease"
 fi
@@ -150,8 +151,12 @@ else
   assert_hook_exit 2 "$EUV" "$(cmd_payload 'poetry add numpy')"       "blocks poetry add"
   assert_hook_exit 2 "$EUV" "$(cmd_payload 'conda install numpy')"    "blocks conda install"
   assert_hook_exit 2 "$EUV" "$(cmd_payload 'python -m pytest')"       "blocks python -m pytest"
+  assert_hook_exit 2 "$EUV" "$(cmd_payload 'pip3 uninstall numpy')"   "blocks pip3 uninstall"
+  assert_hook_exit 2 "$EUV" "$(cmd_payload 'pytest tests/')"          "blocks bare pytest"
+  assert_hook_exit 2 "$EUV" "$(cmd_payload 'cd project && pytest')"   "blocks bare pytest after &&"
   assert_hook_exit 0 "$EUV" "$(cmd_payload 'uv add numpy')"           "allows uv add"
   assert_hook_exit 0 "$EUV" "$(cmd_payload 'uv run pytest')"          "allows uv run pytest"
+  assert_hook_exit 0 "$EUV" "$(cmd_payload 'uv run pytest --lf')"     "allows uv run pytest with flags"
   assert_hook_exit 0 "$EUV" "$(cmd_payload 'git status')"             "allows unrelated command"
 fi
 
@@ -304,8 +309,10 @@ NBS="nbstripout.sh"
 if ! $HAS_JQ; then
   skip "jq not in PATH — nbstripout.sh uses jq internally; install jq to run these tests"
 else
-  assert_sh_exit 0 "$NBS" "$(file_payload '/some/file.py')"           "skips non-.ipynb file"
-  assert_sh_exit 0 "$NBS" "$(file_payload '/nonexistent/nb.ipynb')"   "skips missing .ipynb file"
+  assert_sh_exit 0 "$NBS" "$(file_payload '/some/file.py')"                              "skips non-.ipynb file"
+  assert_sh_exit 0 "$NBS" "$(file_payload '/nonexistent/notebooks/nb.ipynb')"            "skips missing .ipynb in notebooks/"
+  assert_sh_exit 0 "$NBS" "$(file_payload '/project/scratch/analysis.ipynb')"            "skips .ipynb outside notebooks/ (scratch)"
+  assert_sh_exit 0 "$NBS" "$(file_payload '/project/analysis.ipynb')"                   "skips root-level .ipynb outside notebooks/"
 fi
 
 # ── check-claims.sh ───────────────────────────────────────────────────────────
@@ -379,6 +386,26 @@ if [[ "$BACKUP_AFTER" -gt "$BACKUP_BEFORE" ]]; then
   ok "backup file created in ~/.claude/backups/"
 else
   fail "no new backup file in ~/.claude/backups/ (had $BACKUP_BEFORE, now $BACKUP_AFTER)"
+fi
+
+# ── protect-secrets.sh ───────────────────────────────────────────────────────
+section "protect-secrets.sh"
+PSH="protect-secrets.sh"
+
+if ! $HAS_JQ; then
+  skip "jq not in PATH — protect-secrets.sh uses jq internally; install jq to run these tests"
+else
+  assert_deny  "$PSH" "$(cmd_payload 'cat .env')"                           "blocks cat .env"
+  assert_deny  "$PSH" "$(cmd_payload 'cat .env.production')"                "blocks cat .env.production"
+  assert_deny  "$PSH" "$(cmd_payload 'head -5 /project/.env.local')"        "blocks head on .env file"
+  assert_deny  "$PSH" "$(cmd_payload 'less /home/user/.ssh/id_rsa')"        "blocks less on .ssh file"
+  assert_deny  "$PSH" "$(cmd_payload 'cat config/credentials.json')"        "blocks cat credentials.json"
+  assert_deny  "$PSH" "$(cmd_payload 'cat server.pem')"                     "blocks cat .pem file"
+  assert_deny  "$PSH" "$(cmd_payload 'cat .mcp.local.json')"                "blocks cat .mcp.local.json"
+  assert_allow "$PSH" "$(cmd_payload 'cat README.md')"                      "allows cat README.md"
+  assert_allow "$PSH" "$(cmd_payload 'grep -r DATABASE_URL src/')"          "allows grep without .env path"
+  assert_allow "$PSH" "$(cmd_payload 'cat README.md | grep .env')"          "allows grep for .env string (not reading the file)"
+  assert_allow "$PSH" "$(cmd_payload 'uv run python app.py')"               "allows normal commands"
 fi
 
 # ── summary ──────────────────────────────────────────────────────────────────

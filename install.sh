@@ -10,6 +10,13 @@ log() { printf '[claude-dotfiles] %s\n' "$*"; }
 
 command -v uv >/dev/null || { echo "uv is required: https://github.com/astral-sh/uv"; exit 1; }
 
+# Back up any pre-existing ~/.claude that wasn't created by this script
+if [[ -e "$TARGET" && ! -L "$TARGET" && ! -f "$TARGET/.managed-by-dotfiles" ]]; then
+  backup="$TARGET.backup.$(date +%Y%m%d-%H%M%S)"
+  log "Backing up existing $TARGET → $backup"
+  mv "$TARGET" "$backup"
+fi
+
 mkdir -p "$TARGET/hooks"
 
 # settings.json — try symlink, fall back to copy (Windows without Developer Mode)
@@ -96,6 +103,13 @@ if [[ -n "$SERENA_PYTHON" ]]; then
   fi
 else
   log "Warning: could not locate Serena Python env — run 'uv cache clean' then re-run install.sh"
+fi
+
+# Prevent settings.local.json from showing up as an untracked file in project repos
+mkdir -p "$HOME/.config/git"
+if ! grep -qxF '**/.claude/settings.local.json' "$HOME/.config/git/ignore" 2>/dev/null; then
+  echo '**/.claude/settings.local.json' >> "$HOME/.config/git/ignore"
+  log "Added settings.local.json to global git ignore ($HOME/.config/git/ignore)"
 fi
 
 log ""

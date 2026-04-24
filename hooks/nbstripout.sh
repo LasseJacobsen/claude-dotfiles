@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 input=$(cat)
 fp=$(echo "$input" | jq -r '.tool_input.file_path // empty')
-[[ "$fp" == *.ipynb && -f "$fp" ]] || exit 0
+# Scope to files inside a notebooks/ directory — leave scratch notebooks untouched
+# so Claude can see outputs from iterative runs. Matches one level deep (e.g.
+# /project/notebooks/analysis.ipynb); adjust the glob if you nest further.
+[[ "$fp" == */notebooks/*.ipynb && -f "$fp" ]] || exit 0
 uv tool run nbstripout "$fp" 2>/dev/null
 exit 0

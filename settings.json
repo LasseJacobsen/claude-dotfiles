@@ -1,9 +1,11 @@
 {
   "includeCoAuthoredBy": false,
+  "attribution": {"commit": "", "pr": ""},
   "env": {
     "MPLBACKEND": "Agg",
     "PYTHONDONTWRITEBYTECODE": "1",
-    "LC_ALL": "C.UTF-8"
+    "LC_ALL": "C.UTF-8",
+    "UV_NO_SYNC": "0"
   },
   "mcpServers": {
     "serena": {
@@ -74,6 +76,15 @@
           {
             "type": "command",
             "command": "\"$HOME/.claude/hooks/block-big-binaries.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/protect-secrets.sh\""
           }
         ]
       }

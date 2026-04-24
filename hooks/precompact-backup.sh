@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
 input=$(cat)
 
-precompact_hook_active=$(echo "$input" | python3 -c \
-  "import json,sys; d=json.load(sys.stdin); print(str(d.get('precompact_hook_active',False)).lower())" \
-  2>/dev/null || echo "false")
+precompact_hook_active=$(echo "$input" | jq -r '.precompact_hook_active // false')
 [[ "$precompact_hook_active" == "true" ]] && exit 0
 
-transcript=$(echo "$input" | python3 -c \
-  "import json,sys; d=json.load(sys.stdin); print(d.get('transcript_path',''))" \
-  2>/dev/null || echo "")
+transcript=$(echo "$input" | jq -r '.transcript_path // ""')
 [[ -f "$transcript" ]] || exit 0
 
 backup_dir="$HOME/.claude/backups"

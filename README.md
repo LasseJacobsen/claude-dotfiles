@@ -166,7 +166,8 @@ Hooks live in `~/.claude/hooks/` and run deterministically on every matching too
 | `block-destructive.sh` | Any `Bash` | `rm -rf /`, `rm -rf ~`, `git push --force`, `chmod -R 777`, pipe-to-shell, fork bomb, `DROP TABLE` |
 | `block-git-main.sh` | Any `Bash` | `git commit`/`push` while on `main`, `master`, `prod`, or `production` |
 | `block-big-binaries.py` | `git add` / `git commit -a` | Files >50 MB or with binary result extensions (`.h5`, `.vtk`, `.pkl`, `.npz`, etc.) |
-| `enforce-uv.py` | Any `Bash` | `pip install` → `uv add`, `python -m pytest` → `uv run pytest`, `poetry add` → `uv add`, etc. |
+| `enforce-uv.py` | Any `Bash` | `pip install` → `uv add`, bare `pytest` → `uv run pytest`, `poetry add` → `uv add`, etc. |
+| `protect-secrets.sh` | Any `Bash` | `cat`/`less`/`head`/`tail` on `.env*`, `*.pem`, `*.key`, `credentials.json`, `.ssh/` paths (Bash bypass of `permissions.deny` — issue #6631) |
 
 ### PostToolUse
 
@@ -174,7 +175,7 @@ Hooks live in `~/.claude/hooks/` and run deterministically on every matching too
 |------|---------|--------------|
 | `ruff-after-edit.sh` | `Write`/`Edit`/`MultiEdit` on `.py` | Runs `ruff check --fix` then `ruff format` in-place; always exits 0 |
 | `ty-check.sh` | `Write`/`Edit`/`MultiEdit` on `.py` | Runs `ty check`; exits 2 if type errors found so Claude retries |
-| `nbstripout.sh` | `Write`/`Edit`/`MultiEdit`/`NotebookEdit` on `.ipynb` | Strips cell outputs via `nbstripout`; always exits 0 |
+| `nbstripout.sh` | `Write`/`Edit`/`MultiEdit`/`NotebookEdit` on `*/notebooks/*.ipynb` | Strips cell outputs via `nbstripout`; always exits 0. Scoped to `notebooks/` so scratch notebooks keep their outputs for iterative work. |
 
 #### Opt-in: pytest on save (`pytest-lf.sh`)
 
@@ -193,13 +194,19 @@ The hook skips automatically when there's no `tests/` directory or pytest isn't 
 
 | Hook | What it does |
 |------|--------------|
-| `check-claims.sh` | Scans the last 20 lines of the transcript for uncertain phrases ("I can't access", "probably", "from memory", "I think", "if you could share/provide") and blocks completion if found |
+| `check-claims.sh` | Parses the transcript JSONL to extract the last assistant text block and checks it for uncertain/speculative phrases ("I can't access", "probably", "from memory", "I think", "if you could share/provide"). Blocks completion if found. Ignores tool results and file payloads that happen to contain those phrases. |
 
 ### PreCompact
 
 | Hook | What it does |
 |------|--------------|
 | `precompact-backup.sh` | Copies the current transcript to `~/.claude/backups/compact-<timestamp>.jsonl` before Claude compacts the context window |
+
+---
+
+## Project-level settings (`.claude/settings.json`)
+
+The `.claude/settings.json` inside this repo is a *project-level* settings file — it applies when Claude Code is run from inside the dotfiles directory itself. It contains only the Serena MCP entry so that Serena works here too. Hooks, permissions, and env vars live in the root `settings.json` that `install.sh` deploys to `~/.claude/settings.json`; those apply globally to every project.
 
 ---
 
