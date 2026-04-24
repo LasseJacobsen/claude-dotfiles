@@ -55,9 +55,30 @@ for skill_dir in "$REPO/skills/"*/; do
   log "Copied skill: $skill_name"
 done
 
+# Reinstall plugins declared in plugins-installed.txt
+if [[ -f "$REPO/plugins-installed.txt" ]] && command -v claude >/dev/null 2>&1; then
+  while IFS= read -r line; do
+    [[ -z "$line" || "$line" =~ ^# ]] && continue
+    log "Installing plugin: $line"
+    claude plugin install "$line" --scope user 2>/dev/null || \
+      log "Warning: could not install plugin $line — install manually with: claude plugin install $line"
+  done < "$REPO/plugins-installed.txt"
+fi
+
+# Seed settings.local.json from example on first run
+if [[ ! -f "$TARGET/settings.local.json" && -f "$REPO/settings.local.example.json" ]]; then
+  cp "$REPO/settings.local.example.json" "$TARGET/settings.local.json"
+  log "Created settings.local.json from example template"
+fi
+
 # Warm the uvx cache for Serena so the first MCP startup is fast
 log "Warming Serena uvx cache..."
-uvx --from git+https://github.com/oraios/serena serena --version || true
+if uvx --from git+https://github.com/oraios/serena serena --version 2>/dev/null; then
+  log "Serena cache warmed"
+else
+  log "Warning: Serena cache warming failed — first session start will be slow (~30s)"
+  log "  If Serena never connects, run: uv cache clean && bash install.sh"
+fi
 
 # pyright (Serena's Python language server) needs Node.js to run.
 # Its default nodeenv fallback fails on some systems (notably Windows).
@@ -68,11 +89,18 @@ log "Installing pyright[nodejs] into Serena's env..."
 SERENA_PYTHON=$(uvx --from git+https://github.com/oraios/serena python \
   -c "import sys; print(sys.executable)" 2>/dev/null || true)
 if [[ -n "$SERENA_PYTHON" ]]; then
-  uv pip install --python "$SERENA_PYTHON" "pyright[nodejs]" --quiet
-  log "pyright[nodejs] installed"
+  if uv pip install --python "$SERENA_PYTHON" "pyright[nodejs]" --quiet 2>/dev/null; then
+    log "pyright[nodejs] installed"
+  else
+    log "Warning: pyright[nodejs] install failed — go-to-definition may not work"
+  fi
 else
-  log "Warning: could not locate Serena Python — pyright language server may not start"
+  log "Warning: could not locate Serena Python env — run 'uv cache clean' then re-run install.sh"
 fi
 
 log ""
 log "Done. Start a new Claude Code session to activate Serena and hooks."
+log ""
+log "Verify setup:"
+log "  Hooks:  run 'bash tests/test_hooks.sh' from the dotfiles root"
+log "  Serena: open a Claude Code session and run /mcp — 'serena' should appear as connected"
