@@ -53,7 +53,8 @@ fi
 if [[ -e "$TARGET" && ! -L "$TARGET" && ! -f "$TARGET/.managed-by-dotfiles" ]]; then
   backup="$TARGET.backup.$(date +%Y%m%d-%H%M%S)"
   log "Backing up existing $TARGET → $backup"
-  mv "$TARGET" "$backup"
+  cp -r "$TARGET" "$backup" \
+    || log "Warning: backup failed — continuing anyway"
 fi
 
 mkdir -p "$TARGET/hooks"
@@ -150,6 +151,8 @@ if ! grep -qxF '**/.claude/settings.local.json' "$HOME/.config/git/ignore" 2>/de
   echo '**/.claude/settings.local.json' >> "$HOME/.config/git/ignore"
   log "Added settings.local.json to global git ignore ($HOME/.config/git/ignore)"
 fi
+
+touch "$TARGET/.managed-by-dotfiles"
 
 log ""
 log "Done. Start a new Claude Code session to activate Serena and hooks."
