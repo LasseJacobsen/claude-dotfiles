@@ -1,4 +1,11 @@
 {
+  "includeCoAuthoredBy": false,
+  "attribution": {"commit": "", "pr": ""},
+  "env": {
+    "MPLBACKEND": "Agg",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "LC_ALL": "C.UTF-8"
+  },
   "mcpServers": {
     "serena": {
       "command": "uvx",
@@ -13,14 +20,103 @@
       ]
     }
   },
+  "permissions": {
+    "deny": [
+      "Bash(sudo *)",
+      "Bash(pip install *)",
+      "Bash(pip3 install *)",
+      "Bash(pip uninstall *)",
+      "Bash(rm -rf ~*)",
+      "Bash(rm -rf /*)",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(secrets/**)",
+      "Write(.env*)",
+      "Write(secrets/**)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Write(pyproject.toml)",
+      "Write(uv.lock)"
+    ]
+  },
   "hooks": {
-    "PostToolUse": [
+    "PreToolUse": [
       {
-        "matcher": "Edit|Write",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "uv run --script \"$HOME/.claude/hooks/black_format.py\""
+            "command": "bash \"$HOME/.claude/hooks/block-destructive.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$HOME/.claude/hooks/enforce-uv.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/block-git-main.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$HOME/.claude/hooks/block-big-binaries.py\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/ruff-after-edit.sh\"",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/ty-check.sh\"",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/nbstripout.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/check-claims.sh\""
           }
         ]
       }
