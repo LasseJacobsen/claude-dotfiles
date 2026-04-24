@@ -10,6 +10,45 @@ log() { printf '[claude-dotfiles] %s\n' "$*"; }
 
 command -v uv >/dev/null || { echo "uv is required: https://github.com/astral-sh/uv"; exit 1; }
 
+# jq is required by several hooks for JSON parsing.
+# Claude Code bundles jq so hooks work in sessions; install here for 'make test' in the shell.
+if ! command -v jq >/dev/null 2>&1; then
+  log "jq not found — attempting to install..."
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+      if command -v winget >/dev/null 2>&1; then
+        winget install --id jqlang.jq -e \
+          --accept-source-agreements --accept-package-agreements --silent 2>/dev/null \
+          && log "jq installed via winget" \
+          || log "Warning: winget install failed — run manually: winget install jqlang.jq"
+      else
+        log "Warning: winget not found. Install jq: choco install jq  |  scoop install jq"
+      fi
+      ;;
+    Darwin)
+      if command -v brew >/dev/null 2>&1; then
+        brew install jq 2>/dev/null && log "jq installed via brew" \
+          || log "Warning: brew install jq failed — run manually: brew install jq"
+      else
+        log "Warning: Homebrew not found. Install jq: https://jqlang.github.io/jq/download/"
+      fi
+      ;;
+    *)
+      if command -v apt-get >/dev/null 2>&1; then
+        sudo apt-get install -y jq 2>/dev/null && log "jq installed via apt-get" \
+          || log "Warning: apt-get install jq failed"
+      elif command -v yum >/dev/null 2>&1; then
+        sudo yum install -y jq 2>/dev/null && log "jq installed via yum" \
+          || log "Warning: yum install jq failed"
+      else
+        log "Warning: could not detect package manager. Install jq manually."
+      fi
+      ;;
+  esac
+  command -v jq >/dev/null 2>&1 \
+    || log "Note: jq unavailable in this shell — hooks work in Claude Code (jq is bundled); 'make test' will skip jq-dependent tests."
+fi
+
 # Back up any pre-existing ~/.claude that wasn't created by this script
 if [[ -e "$TARGET" && ! -L "$TARGET" && ! -f "$TARGET/.managed-by-dotfiles" ]]; then
   backup="$TARGET.backup.$(date +%Y%m%d-%H%M%S)"

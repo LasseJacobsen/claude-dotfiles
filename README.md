@@ -57,7 +57,7 @@ Then **start a new Claude Code session** — MCP servers and hooks are loaded at
 - Symlinks for files require [Developer Mode](https://learn.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development) or admin. Without it, `install.sh` falls back to copying — re-run after changes.
 - `uv` installs to `~/.local/bin` — make sure it's on your PATH before starting Claude Code.
 - Run `install.sh` in Git Bash (not PowerShell/cmd).
-- Several hooks (`block-destructive.sh`, `block-git-main.sh`, `ruff-after-edit.sh`, `ty-check.sh`, `nbstripout.sh`) require `jq`. Claude Code ships jq in its bundled environment; if you also want to run `make test` from Git Bash, install jq separately:
+- Several hooks require `jq`. Claude Code ships jq in its bundled environment so hooks always work in sessions. `install.sh` attempts to install jq via `winget` automatically; if that fails, install it manually before running `make test`:
   ```
   winget install jqlang.jq
   ```
