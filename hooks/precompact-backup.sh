@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
+# PreCompact hooks have no recursion risk (Claude doesn't fire them in a loop),
+# so no stop_hook_active-style guard is needed here.
 input=$(cat)
-
-precompact_hook_active=$(echo "$input" | jq -r '.precompact_hook_active // false')
-[[ "$precompact_hook_active" == "true" ]] && exit 0
-
 transcript=$(echo "$input" | jq -r '.transcript_path // ""')
 [[ -f "$transcript" ]] || exit 0
 

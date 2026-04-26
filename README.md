@@ -15,13 +15,15 @@ claude-dotfiles/
 ├── hooks/
 │   ├── block-destructive.sh            # PreToolUse: block rm -rf /, force-push, fork bombs, etc.
 │   ├── block-git-main.sh               # PreToolUse: block direct commits/pushes to main/master/prod
-│   ├── block-big-binaries.py           # PreToolUse: block committing large or binary result files
-│   ├── enforce-uv.py                   # PreToolUse: redirect pip/poetry/conda → uv
+│   ├── block-big-binaries.sh           # PreToolUse: block committing large or binary result files
+│   ├── enforce-uv.sh                   # PreToolUse: redirect pip/poetry/conda → uv
 │   ├── ruff-after-edit.sh              # PostToolUse: ruff lint+format on every .py edit
 │   ├── ty-check.sh                     # PostToolUse: ty type-check on every .py edit
 │   ├── nbstripout.sh                   # PostToolUse: strip notebook outputs on .ipynb edits
 │   ├── check-claims.sh                 # Stop: block uncertain/speculative responses
 │   ├── precompact-backup.sh            # PreCompact: back up transcript before context compaction
+│   ├── session-start.sh                # SessionStart: inject branch/status/recent commits as context
+│   ├── notify.sh                       # Notification: cross-platform desktop notification bridge
 │   └── pytest-lf.sh                    # PostToolUse (opt-in): run failing tests after .py edits
 ├── skills/
 │   └── git-pr-message/
@@ -49,7 +51,8 @@ bash install.sh
 5. Copies skills into `~/.claude/skills/`
 6. Seeds `~/.claude/settings.local.json` from `settings.local.example.json` on first run
 7. Reinstalls plugins listed in `plugins-installed.txt`
-8. Warms the Serena uvx cache and installs `pyright[nodejs]` into Serena's env
+8. Installs `nbstripout` and registers it as a global git filter (strips notebook outputs on every `git add`, regardless of who staged the file)
+9. Warms the Serena uvx cache and installs `pyright[nodejs]` into Serena's env
 
 Then **start a new Claude Code session** — MCP servers and hooks are loaded at startup.
 
@@ -166,8 +169,8 @@ Hooks live in `~/.claude/hooks/` and run deterministically on every matching too
 |------|---------|----------------|
 | `block-destructive.sh` | Any `Bash` | `rm -rf /`, `rm -rf ~`, `git push --force`, `chmod -R 777`, pipe-to-shell, fork bomb, `DROP TABLE` |
 | `block-git-main.sh` | Any `Bash` | `git commit`/`push` while on `main`, `master`, `prod`, or `production` |
-| `block-big-binaries.py` | `git add` / `git commit -a` | Files >50 MB or with binary result extensions (`.h5`, `.vtk`, `.pkl`, `.npz`, etc.) |
-| `enforce-uv.py` | Any `Bash` | `pip install` → `uv add`, bare `pytest` → `uv run pytest`, `poetry add` → `uv add`, etc. |
+| `block-big-binaries.sh` | `git add` / `git commit -a` | Files >50 MB or with binary result extensions (`.h5`, `.vtk`, `.pkl`, `.npz`, etc.) |
+| `enforce-uv.sh` | Any `Bash` | Denies `pip install`, `pip uninstall`, `poetry add`, `poetry install`, `conda install`, `python -m pytest`, `python -m ruff`, and bare `pytest`. The deny reason includes the suggested uv replacement (e.g. `uv add`, `uv run pytest`). |
 | `protect-secrets.sh` | Any `Bash` | `cat`/`less`/`head`/`tail` on `.env*`, `*.pem`, `*.key`, `credentials.json`, `.ssh/` paths (Bash bypass of `permissions.deny` — issue #6631) |
 
 ### PostToolUse
@@ -176,7 +179,7 @@ Hooks live in `~/.claude/hooks/` and run deterministically on every matching too
 |------|---------|--------------|
 | `ruff-after-edit.sh` | `Write`/`Edit`/`MultiEdit` on `.py` | Runs `ruff check --fix` then `ruff format` in-place; always exits 0 |
 | `ty-check.sh` | `Write`/`Edit`/`MultiEdit` on `.py` | Runs `ty check`; exits 2 if type errors found so Claude retries |
-| `nbstripout.sh` | `Write`/`Edit`/`MultiEdit`/`NotebookEdit` on `*/notebooks/*.ipynb` | Strips cell outputs via `nbstripout`; always exits 0. Scoped to `notebooks/` so scratch notebooks keep their outputs for iterative work. |
+| `nbstripout.sh` | `Write`/`NotebookEdit` on `*/notebooks/*.ipynb` | Strips cell outputs via `nbstripout`; always exits 0. Scoped to `notebooks/` so scratch notebooks keep their outputs for iterative work. The matcher excludes `Edit`/`MultiEdit` because those are line-based operations that don't make sense on a JSON notebook. |
 
 #### Opt-in: pytest on save (`pytest-lf.sh`)
 
@@ -195,13 +198,35 @@ The hook skips automatically when there's no `tests/` directory or pytest isn't 
 
 | Hook | What it does |
 |------|--------------|
-| `check-claims.sh` | Parses the transcript JSONL to extract the last assistant text block and checks it for uncertain/speculative phrases ("I can't access", "probably", "from memory", "I think", "if you could share/provide"). Blocks completion if found. Ignores tool results and file payloads that happen to contain those phrases. |
+| `check-claims.sh` | Parses the transcript JSONL to extract the last assistant text block and checks it for uncertain/speculative phrases ("I can't access", "from memory", "I think", "if you could share/provide"). Blocks completion if found. Ignores tool results and file payloads that happen to contain those phrases. |
 
 ### PreCompact
 
 | Hook | What it does |
 |------|--------------|
 | `precompact-backup.sh` | Copies the current transcript to `~/.claude/backups/compact-<timestamp>.jsonl` before Claude compacts the context window |
+
+### SessionStart
+
+| Hook | What it does |
+|------|--------------|
+| `session-start.sh` | On `startup`, `resume`, or `clear`: prints the current branch, working-tree status, and last 5 commits. Stdout from SessionStart hooks is injected into Claude's context, replacing "remember to check git status" prose rules. Exits silently outside a git repo. |
+
+### Notification
+
+| Hook | What it does |
+|------|--------------|
+| `notify.sh` | Surfaces "Claude needs input" events as a desktop notification: BurntToast on Windows, `osascript` on macOS, `notify-send` on Linux. Always exits 0; missing notifier is silent. |
+
+#### Enabling Windows toast notifications
+
+`notify.sh` uses [BurntToast](https://github.com/Windos/BurntToast) on Windows. Install it once per user:
+
+```powershell
+Install-Module -Name BurntToast -Scope CurrentUser
+```
+
+If BurntToast is not installed, `notify.sh` silently falls through — no error. macOS and Linux work out of the box (no install).
 
 ---
 

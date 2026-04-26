@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$HOME/.claude/hooks/enforce-uv.py\""
+            "command": "bash \"$HOME/.claude/hooks/enforce-uv.sh\""
           }
         ]
       },
@@ -75,7 +75,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$HOME/.claude/hooks/block-big-binaries.py\""
+            "command": "bash \"$HOME/.claude/hooks/block-big-binaries.sh\""
           }
         ]
       },
@@ -111,7 +111,7 @@
         ]
       },
       {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "matcher": "Write|NotebookEdit",
         "hooks": [
           {
             "type": "command",
@@ -137,6 +137,27 @@
           {
             "type": "command",
             "command": "bash \"$HOME/.claude/hooks/precompact-backup.sh\""
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/session-start.sh\""
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/notify.sh\""
           }
         ]
       }

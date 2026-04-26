@@ -8,9 +8,8 @@ TARGET="$HOME/.claude"
 
 log() { printf '[claude-dotfiles] %s\n' "$*"; }
 
-command -v uv >/dev/null || { echo "uv is required: https://github.com/astral-sh/uv"; exit 1; }
-
-# jq is required by several hooks for JSON parsing.
+# jq is required by several hooks for JSON parsing. Install jq first so a
+# user missing both jq and uv gets jq automatically before we abort on uv.
 # Claude Code bundles jq so hooks work in sessions; install here for 'make test' in the shell.
 if ! command -v jq >/dev/null 2>&1; then
   log "jq not found — attempting to install..."
@@ -49,6 +48,9 @@ if ! command -v jq >/dev/null 2>&1; then
     || log "Note: jq unavailable in this shell — hooks work in Claude Code (jq is bundled); 'make test' will skip jq-dependent tests."
 fi
 
+# uv is required by Serena, the nbstripout install, and PyRight bootstrapping.
+command -v uv >/dev/null || { echo "uv is required: https://github.com/astral-sh/uv"; exit 1; }
+
 # Back up any pre-existing ~/.claude that wasn't created by this script
 if [[ -e "$TARGET" && ! -L "$TARGET" && ! -f "$TARGET/.managed-by-dotfiles" ]]; then
   backup="$TARGET.backup.$(date +%Y%m%d-%H%M%S)"
@@ -59,47 +61,51 @@ fi
 
 mkdir -p "$TARGET/hooks"
 
-# settings.json — try symlink, fall back to copy (Windows without Developer Mode)
-if ln -snf "$REPO/settings.json" "$TARGET/settings.json" 2>/dev/null; then
-  log "Symlinked settings.json"
-else
-  cp "$REPO/settings.json" "$TARGET/settings.json"
-  log "Copied settings.json (symlink unavailable — re-run install.sh after changes)"
-fi
+# Prefer a symlink (so edits in the repo show up live in ~/.claude/) and fall
+# back to a copy when symlinks aren't available — Windows without Developer Mode.
+link_or_copy() {
+  local src="$1" dst="$2" name="$3"
+  if ln -snf "$src" "$dst" 2>/dev/null; then
+    log "Symlinked $name"
+  else
+    cp "$src" "$dst"
+    log "Copied $name (symlink unavailable — re-run install.sh after changes)"
+  fi
+}
 
-# CLAUDE.md — same approach
-if ln -snf "$REPO/CLAUDE.md" "$TARGET/CLAUDE.md" 2>/dev/null; then
-  log "Symlinked CLAUDE.md"
-else
-  cp "$REPO/CLAUDE.md" "$TARGET/CLAUDE.md"
-  log "Copied CLAUDE.md"
-fi
+link_or_copy "$REPO/settings.json" "$TARGET/settings.json" "settings.json"
+link_or_copy "$REPO/CLAUDE.md"     "$TARGET/CLAUDE.md"     "CLAUDE.md"
 
-# Hooks — copy individually so they stay in sync on re-runs
+# Hooks — symlink-or-copy each, so editing the repo updates ~/.claude live
+# wherever symlinks are available.
 for hook in "$REPO/hooks/"*; do
   [[ -f "$hook" ]] || continue
-  cp "$hook" "$TARGET/hooks/$(basename "$hook")"
-  log "Copied hook: $(basename "$hook")"
+  link_or_copy "$hook" "$TARGET/hooks/$(basename "$hook")" "hook: $(basename "$hook")"
 done
 
-# Ensure all hook scripts are executable (git drops +x across some transfers)
+# Ensure copied hooks are executable (symlinks preserve mode from the repo).
 find "$TARGET/hooks" -type f \( -name '*.sh' -o -name '*.py' \) -exec chmod +x {} +
 
-# Commands — copy individually so /user:* commands work from any project
+# Commands — symlink-or-copy
 mkdir -p "$TARGET/commands"
 for cmd_file in "$REPO/commands/"*; do
   [[ -f "$cmd_file" ]] || continue
-  cp "$cmd_file" "$TARGET/commands/$(basename "$cmd_file")"
-  log "Copied command: $(basename "$cmd_file")"
+  link_or_copy "$cmd_file" "$TARGET/commands/$(basename "$cmd_file")" "command: $(basename "$cmd_file")"
 done
 
-# Skills — copy directory structure so skills are available globally
+# Skills — replace any existing target before copying so re-runs don't nest
+# (cp -r src dst/ when dst/src already exists copies into dst/src/src).
 mkdir -p "$TARGET/skills"
 for skill_dir in "$REPO/skills/"*/; do
   [[ -d "$skill_dir" ]] || continue
   skill_name=$(basename "${skill_dir%/}")
-  cp -r "${skill_dir%/}" "$TARGET/skills/"
-  log "Copied skill: $skill_name"
+  rm -rf "$TARGET/skills/$skill_name"
+  if ln -snf "${skill_dir%/}" "$TARGET/skills/$skill_name" 2>/dev/null; then
+    log "Symlinked skill: $skill_name"
+  else
+    cp -r "${skill_dir%/}" "$TARGET/skills/$skill_name"
+    log "Copied skill: $skill_name"
+  fi
 done
 
 # Reinstall plugins declared in plugins-installed.txt
@@ -116,6 +122,18 @@ fi
 if [[ ! -f "$TARGET/settings.local.json" && -f "$REPO/settings.local.example.json" ]]; then
   cp "$REPO/settings.local.example.json" "$TARGET/settings.local.json"
   log "Created settings.local.json from example template"
+fi
+
+# nbstripout global git filter — covers humans staging notebooks too, not just Claude.
+log "Registering nbstripout as a global git filter..."
+if uv tool install --quiet nbstripout 2>/dev/null && command -v nbstripout >/dev/null 2>&1; then
+  if nbstripout --install --global 2>/dev/null; then
+    log "nbstripout registered globally"
+  else
+    log "Warning: nbstripout install succeeded but --install --global failed (run it manually)"
+  fi
+else
+  log "Warning: could not install nbstripout via uv — notebook output stripping limited to the Claude hook"
 fi
 
 # Warm the uvx cache for Serena so the first MCP startup is fast
