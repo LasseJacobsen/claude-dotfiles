@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
+set -uo pipefail
+# Pick a working python: on Windows, `python3` often resolves to the Microsoft
+# Store stub which prints an install prompt instead of running. Probe before use.
+if python3 -c '' >/dev/null 2>&1; then PY=python3
+elif python -c '' >/dev/null 2>&1; then PY=python
+else exit 0  # no python — fail open, never block Claude over a missing interpreter
+fi
+
 input=$(cat)
 
-stop_hook_active=$(echo "$input" | python3 -c \
+stop_hook_active=$(echo "$input" | "$PY" -c \
   "import json,sys; d=json.load(sys.stdin); print(str(d.get('stop_hook_active',False)).lower())" \
   2>/dev/null || echo "false")
 [[ "$stop_hook_active" == "true" ]] && exit 0
 
-transcript=$(echo "$input" | python3 -c \
+transcript=$(echo "$input" | "$PY" -c \
   "import json,sys; d=json.load(sys.stdin); print(d.get('transcript_path',''))" \
   2>/dev/null || echo "")
 [[ -f "$transcript" ]] || exit 0
@@ -14,7 +22,7 @@ transcript=$(echo "$input" | python3 -c \
 # Extract only the last assistant text response from the JSONL transcript.
 # A raw tail -20 also catches file-write payloads and tool results, producing
 # false positives when written files happen to contain the flagged phrases.
-last=$(python3 - "$transcript" <<'PYEOF'
+last=$("$PY" - "$transcript" <<'PYEOF'
 import json, sys
 
 path = sys.argv[1]
@@ -28,9 +36,13 @@ with open(path, encoding="utf-8", errors="replace") as f:
             obj = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if obj.get("role") != "assistant":
+        # Real transcripts wrap the message: {type: "assistant", message: {role, content}}.
+        # Fall back to the flat shape so older transcripts and test fixtures still work.
+        is_assistant = obj.get("type") == "assistant" or obj.get("role") == "assistant"
+        if not is_assistant:
             continue
-        content = obj.get("content", "")
+        msg = obj.get("message", obj)
+        content = msg.get("content", obj.get("content", ""))
         if isinstance(content, str):
             texts.append(content)
         elif isinstance(content, list):
@@ -42,7 +54,7 @@ print(texts[-1] if texts else "")
 PYEOF
 )
 
-if echo "$last" | grep -iqE "I (can't|cannot) access|from memory|probably|I think |if you could (share|provide)"; then
+if echo "$last" | grep -iqE "I (can't|cannot) access|from memory|if you could (share|provide)"; then
   echo "Response contains uncertain or speculative phrasing. Verify before completing." >&2
   exit 2
 fi

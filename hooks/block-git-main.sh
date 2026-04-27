@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
+set -uo pipefail
 input=$(cat)
 cmd=$(echo "$input" | jq -r '.tool_input.command // empty')
-branch=$(git branch --show-current 2>/dev/null)
+branch=$(git branch --show-current 2>/dev/null || true)
 
 if [[ "$branch" =~ ^(main|master|prod|production)$ ]]; then
   if echo "$cmd" | grep -qE '^git (commit|push)'; then

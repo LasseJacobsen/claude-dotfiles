@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
+set -uo pipefail
 input=$(cat)
 fp=$(echo "$input" | jq -r '.tool_input.file_path // empty')
-# Scope to files inside a notebooks/ directory — leave scratch notebooks untouched
-# so Claude can see outputs from iterative runs. Matches one level deep (e.g.
-# /project/notebooks/analysis.ipynb); adjust the glob if you nest further.
+# Scope to notebooks/ — scratch notebooks keep outputs so Claude can see plots
+# from iterative runs. Adjust the glob if you nest deeper than one level.
 [[ "$fp" == */notebooks/*.ipynb && -f "$fp" ]] || exit 0
 uv tool run nbstripout "$fp" 2>/dev/null
 exit 0
