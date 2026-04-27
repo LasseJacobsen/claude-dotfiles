@@ -355,26 +355,6 @@ assert_sh_exit 2 "$CCS" "$(stop_payload false "$BLOCK_TRANSCRIPT")"  "blocks fla
 assert_sh_exit 0 "$CCS" "$(stop_payload false "$GOOD_TRANSCRIPT")"   "allows clean response"
 assert_sh_exit 0 "$CCS" "$(stop_payload false "$TOOL_TRANSCRIPT")"   "ignores flagged phrase in tool payload (not assistant response)"
 
-# ── pytest-lf.sh ─────────────────────────────────────────────────────────────
-section "pytest-lf.sh"
-PLF="pytest-lf.sh"
-
-if ! $HAS_JQ; then
-  skip "jq not in PATH — pytest-lf.sh uses jq internally; install jq to run these tests"
-else
-  assert_sh_exit 0 "$PLF" "$(file_payload '/some/file.txt')"  "skips non-.py file"
-
-  NOTESTDIR="$TMPDIR_BASE/no-tests"
-  mkdir -p "$NOTESTDIR"
-  code=0
-  (cd "$NOTESTDIR" && echo "$(file_payload 'src/foo.py')" | bash "$HOOKS/$PLF" >/dev/null 2>&1) || code=$?
-  if [[ "$code" -eq 0 ]]; then
-    ok "skips when no tests/ directory"
-  else
-    fail "should exit 0 when no tests/ directory (got $code)"
-  fi
-fi
-
 # ── precompact-backup.sh ─────────────────────────────────────────────────────
 section "precompact-backup.sh"
 PCB="precompact-backup.sh"

@@ -10,7 +10,6 @@
 !CLAUDE.md
 !settings.json
 !settings.local.example.json
-!plugins-installed.txt
 !.claude/
 !.claude/**
 
@@ -20,8 +19,6 @@
 
 # Docs
 !README.md
-!research.md
-!HANDOVER.md
 
 # Source directories
 !hooks/
