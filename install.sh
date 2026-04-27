@@ -116,16 +116,6 @@ for skill_dir in "$REPO/skills/"*/; do
   fi
 done
 
-# Reinstall plugins declared in plugins-installed.txt
-if [[ -f "$REPO/plugins-installed.txt" ]] && command -v claude >/dev/null 2>&1; then
-  while IFS= read -r line; do
-    [[ -z "$line" || "$line" =~ ^# ]] && continue
-    log "Installing plugin: $line"
-    claude plugin install "$line" --scope user 2>/dev/null || \
-      log "Warning: could not install plugin $line — install manually with: claude plugin install $line"
-  done < "$REPO/plugins-installed.txt"
-fi
-
 # Seed settings.local.json from example on first run
 if [[ ! -f "$TARGET/settings.local.json" && -f "$REPO/settings.local.example.json" ]]; then
   cp "$REPO/settings.local.example.json" "$TARGET/settings.local.json"

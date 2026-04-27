@@ -24,9 +24,6 @@
   "permissions": {
     "deny": [
       "Bash(sudo *)",
-      "Bash(pip install *)",
-      "Bash(pip3 install *)",
-      "Bash(pip uninstall *)",
       "Bash(rm -rf ~*)",
       "Bash(rm -rf /*)",
       "Read(.env)",
@@ -97,16 +94,6 @@
             "type": "command",
             "command": "bash \"$HOME/.claude/hooks/ruff-after-edit.sh\"",
             "timeout": 15
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$HOME/.claude/hooks/ty-check.sh\"",
-            "timeout": 30
           }
         ]
       },

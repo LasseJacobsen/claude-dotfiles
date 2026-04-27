@@ -9,7 +9,6 @@ claude-dotfiles/
 ├── CLAUDE.md                           # Non-obvious overrides (commit rules, naming)
 ├── settings.json                       # Claude Code settings (MCP servers, hooks, permissions)
 ├── settings.local.example.json         # Template for machine-specific overrides
-├── plugins-installed.txt               # Plugins reinstalled by install.sh on new machines
 ├── install.sh                          # One-shot setup script
 ├── Makefile                            # make install / make test
 ├── hooks/
@@ -18,13 +17,11 @@ claude-dotfiles/
 │   ├── block-big-binaries.sh           # PreToolUse: block committing large or binary result files
 │   ├── enforce-uv.sh                   # PreToolUse: redirect pip/poetry/conda → uv
 │   ├── ruff-after-edit.sh              # PostToolUse: ruff lint+format on every .py edit
-│   ├── ty-check.sh                     # PostToolUse: ty type-check on every .py edit
 │   ├── nbstripout.sh                   # PostToolUse: strip notebook outputs on .ipynb edits
 │   ├── check-claims.sh                 # Stop: block uncertain/speculative responses
 │   ├── precompact-backup.sh            # PreCompact: back up transcript before context compaction
 │   ├── session-start.sh                # SessionStart: inject branch/status/recent commits as context
-│   ├── notify.sh                       # Notification: cross-platform desktop notification bridge
-│   └── pytest-lf.sh                    # PostToolUse (opt-in): run failing tests after .py edits
+│   └── notify.sh                       # Notification: cross-platform desktop notification bridge
 ├── skills/
 │   └── git-pr-message/
 │       └── SKILL.md                    # Skill: generate PR descriptions from git log
@@ -52,9 +49,8 @@ The clone location doesn't matter — `install.sh` resolves paths relative to it
 4. Copies commands into `~/.claude/commands/`
 5. Copies skills into `~/.claude/skills/`
 6. Seeds `~/.claude/settings.local.json` from `settings.local.example.json` on first run
-7. Reinstalls plugins listed in `plugins-installed.txt`
-8. Installs `nbstripout` and registers it as a global git filter (strips notebook outputs on every `git add`, regardless of who staged the file)
-9. Warms the Serena uvx cache and installs `pyright[nodejs]` into Serena's env
+7. Installs `nbstripout` and registers it as a global git filter (strips notebook outputs on every `git add`, regardless of who staged the file)
+8. Warms the Serena uvx cache and installs `pyright[nodejs]` into Serena's env
 
 Then **start a new Claude Code session** — MCP servers and hooks are loaded at startup.
 
@@ -189,21 +185,7 @@ If you need a real security boundary, run Claude Code in a sandboxed environment
 | Hook | Trigger | What it does |
 |------|---------|--------------|
 | `ruff-after-edit.sh` | `Write`/`Edit`/`MultiEdit` on `.py` | Runs `ruff check --fix` then `ruff format` in-place; always exits 0 |
-| `ty-check.sh` | `Write`/`Edit`/`MultiEdit` on `.py` | Runs `ty check`; exits 2 if type errors found so Claude retries |
 | `nbstripout.sh` | `Write`/`NotebookEdit` on `*/notebooks/*.ipynb` | Strips cell outputs via `nbstripout`; always exits 0. Scoped to `notebooks/` so scratch notebooks keep their outputs for iterative work. The matcher excludes `Edit`/`MultiEdit` because those are line-based operations that don't make sense on a JSON notebook. |
-
-#### Opt-in: pytest on save (`pytest-lf.sh`)
-
-`pytest-lf.sh` is available but **not enabled by default** (can be slow for large suites). To enable, add it to `settings.json` under `PostToolUse`:
-
-```json
-{
-  "matcher": "Write|Edit|MultiEdit",
-  "hooks": [{ "type": "command", "command": "bash \"$HOME/.claude/hooks/pytest-lf.sh\"", "timeout": 60 }]
-}
-```
-
-The hook skips automatically when there's no `tests/` directory or pytest isn't installed in the project venv.
 
 ### Stop
 

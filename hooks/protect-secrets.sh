@@ -11,6 +11,14 @@ set -uo pipefail
 # Pattern: a file-display command followed by a secret-file path within the same
 # pipeline segment ([^|&;]* stops at the segment boundary).
 input=$(cat)
+
+# Fast path: every deny pattern below requires one of these tokens in the
+# command. Skip jq + grep spawns when none of them appears in the input.
+case "$input" in
+  *".env"*|*".pem"*|*".key"*|*".p12"*|*".pfx"*|*"credentials.json"*|*".ssh/"*|*".mcp.local.json"*) ;;
+  *) exit 0 ;;
+esac
+
 cmd=$(echo "$input" | jq -r '.tool_input.command // empty')
 
 # Tools that read file contents to stdout. Excludes grep (matches the literal

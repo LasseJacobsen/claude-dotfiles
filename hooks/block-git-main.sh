@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -uo pipefail
 input=$(cat)
+
+# Fast path: only `git commit` / `git push` can ever be denied here. Skip the
+# jq + git-branch spawns when the input couldn't possibly trigger the slow path.
+case "$input" in
+  *"git commit"*|*"git push"*) ;;
+  *) exit 0 ;;
+esac
+
 cmd=$(echo "$input" | jq -r '.tool_input.command // empty')
 branch=$(git branch --show-current 2>/dev/null || true)
 
