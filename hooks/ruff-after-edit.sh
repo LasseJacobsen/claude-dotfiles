@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 input=$(cat)
 file_path=$(echo "$input" | jq -r '.tool_input.file_path // empty')
 [[ "$file_path" == *.py && -f "$file_path" ]] || exit 0

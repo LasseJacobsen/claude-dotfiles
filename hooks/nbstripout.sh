@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 input=$(cat)
 fp=$(echo "$input" | jq -r '.tool_input.file_path // empty')
 # Scope to notebooks/ — scratch notebooks keep outputs so Claude can see plots

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # PreCompact hooks have no recursion risk (Claude doesn't fire them in a loop),
 # so no stop_hook_active-style guard is needed here.
 input=$(cat)

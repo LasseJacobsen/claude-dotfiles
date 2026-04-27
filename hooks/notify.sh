@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # Notification bridge: surfaces 'Claude needs input' as a desktop notification.
 # Always exits 0 — a missing notifier should never block Claude.
 #
@@ -11,12 +12,16 @@ message=$(echo "$input" | jq -r '.message // "Claude needs input"' 2>/dev/null)
 
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*)
-    CC_TITLE="$title" CC_MSG="$message" powershell.exe -NoProfile -Command '
-      if (Get-Module -ListAvailable -Name BurntToast) {
-        Import-Module BurntToast
-        New-BurntToastNotification -Text $env:CC_TITLE,$env:CC_MSG
-      }
-    ' >/dev/null 2>&1 || true
+    # powershell.exe isn't guaranteed to be on PATH (stripped-down Git Bash,
+    # custom shells). Probe before invoking; fall through silently otherwise.
+    if command -v powershell.exe >/dev/null 2>&1; then
+      CC_TITLE="$title" CC_MSG="$message" powershell.exe -NoProfile -Command '
+        if (Get-Module -ListAvailable -Name BurntToast) {
+          Import-Module BurntToast
+          New-BurntToastNotification -Text $env:CC_TITLE,$env:CC_MSG
+        }
+      ' >/dev/null 2>&1 || true
+    fi
     ;;
   Darwin)
     osascript \

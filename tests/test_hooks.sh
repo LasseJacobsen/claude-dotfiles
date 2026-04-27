@@ -161,9 +161,16 @@ else
   assert_deny  "$EUV" "$(cmd_payload 'pip3 uninstall numpy')"   "blocks pip3 uninstall"
   assert_deny  "$EUV" "$(cmd_payload 'pytest tests/')"          "blocks bare pytest"
   assert_deny  "$EUV" "$(cmd_payload 'cd project && pytest')"   "blocks bare pytest after &&"
+  assert_deny  "$EUV" "$(cmd_payload 'python3 -m pytest')"      "blocks python3 -m pytest"
+  assert_deny  "$EUV" "$(cmd_payload 'uvx pytest tests/')"      "blocks uvx pytest"
+  assert_deny  "$EUV" "$(cmd_payload 'uvx ruff check')"         "blocks uvx ruff"
   assert_allow "$EUV" "$(cmd_payload 'uv add numpy')"           "allows uv add"
   assert_allow "$EUV" "$(cmd_payload 'uv run pytest')"          "allows uv run pytest"
   assert_allow "$EUV" "$(cmd_payload 'uv run pytest --lf')"                              "allows uv run pytest with flags"
+  assert_allow "$EUV" "$(cmd_payload 'pytest-watcher tests/')"                           "allows pytest-watcher (not bare pytest)"
+  assert_allow "$EUV" "$(cmd_payload 'uv run pytest-watch')"                             "allows pytest-watch"
+  assert_allow "$EUV" "$(cmd_payload 'python -m pytest-cov')"                            "allows python -m pytest-cov"
+  assert_allow "$EUV" "$(cmd_payload 'uvx ty@0.0.32 check foo.py')"                      "allows uvx ty (not pytest/ruff)"
   assert_allow "$EUV" "$(cmd_payload 'git status')"                                      "allows unrelated command"
   assert_allow "$EUV" "$(cmd_payload 'gh pr create --body "run pip install to set up"')" "allows pip install inside argument string"
 fi
@@ -242,6 +249,15 @@ p.write_bytes(b'\\x00' * (51 * 1024 * 1024))
     fail "should emit JSON deny — got exit $code, stdout: $out"
   fi
 
+  # `git -C <path> add ...` must not bypass the check.
+  code=0
+  out=$( (cd "$BIGDIR" && echo "$(cmd_payload "git -C $BIGDIR add big.h5")" | "$HOOKS/$BBB" 2>/dev/null) ) || code=$?
+  if [[ "$code" -eq 0 ]] && echo "$out" | grep -q '"permissionDecision":"deny"'; then
+    ok "blocks staging large .h5 via git -C"
+  else
+    fail "should emit JSON deny for git -C — got exit $code, stdout: $out"
+  fi
+
   # Small file test: separate isolated repo
   SMALLDIR="$TMPDIR_BASE/binary-test-small"
   mkdir -p "$SMALLDIR"
@@ -298,7 +314,7 @@ else
   CLEAN_PY="$TMPDIR_BASE/clean.py"
   echo "x: int = 1" > "$CLEAN_PY"
 
-  if uvx ty@latest --version >/dev/null 2>&1; then
+  if uvx ty@0.0.32 --version >/dev/null 2>&1; then
     code=$(sh_exit "$TCH" "$(file_payload "$CLEAN_PY")")
     if [[ "$code" -eq 0 ]]; then
       ok "ty passes on clean .py file"
@@ -341,6 +357,7 @@ printf '{"type":"assistant","message":{"role":"assistant","content":"The functio
 MEM_TRANSCRIPT="$TRANSCRIPT_DIR/memory.jsonl"
 printf '{"type":"assistant","message":{"role":"assistant","content":"From memory, this should be around 42."}}\n' > "$MEM_TRANSCRIPT"
 
+# 'I think' is intentionally NOT in the deny list — too broad, fired on legit analysis.
 THINK_TRANSCRIPT="$TRANSCRIPT_DIR/think.jsonl"
 printf '{"type":"assistant","message":{"role":"assistant","content":"I think this approach will work."}}\n' > "$THINK_TRANSCRIPT"
 
@@ -358,7 +375,7 @@ assert_sh_exit 0 "$CCS" "$(stop_payload true  '/nonexistent')"  "skips when stop
 assert_sh_exit 0 "$CCS" "$(stop_payload false '/nonexistent')"  "skips when transcript missing"
 assert_sh_exit 2 "$CCS" "$(stop_payload false "$BAD_TRANSCRIPT")"    "blocks 'cannot access'"
 assert_sh_exit 2 "$CCS" "$(stop_payload false "$MEM_TRANSCRIPT")"    "blocks 'from memory'"
-assert_sh_exit 2 "$CCS" "$(stop_payload false "$THINK_TRANSCRIPT")"  "blocks 'I think'"
+assert_sh_exit 0 "$CCS" "$(stop_payload false "$THINK_TRANSCRIPT")"  "allows 'I think' (too broad to deny)"
 assert_sh_exit 2 "$CCS" "$(stop_payload false "$BLOCK_TRANSCRIPT")"  "blocks flagged phrase in content-blocks shape"
 assert_sh_exit 0 "$CCS" "$(stop_payload false "$GOOD_TRANSCRIPT")"   "allows clean response"
 assert_sh_exit 0 "$CCS" "$(stop_payload false "$TOOL_TRANSCRIPT")"   "ignores flagged phrase in tool payload (not assistant response)"
@@ -421,10 +438,19 @@ else
   assert_deny  "$PSH" "$(cmd_payload 'cat config/credentials.json')"        "blocks cat credentials.json"
   assert_deny  "$PSH" "$(cmd_payload 'cat server.pem')"                     "blocks cat .pem file"
   assert_deny  "$PSH" "$(cmd_payload 'cat .mcp.local.json')"                "blocks cat .mcp.local.json"
+  assert_deny  "$PSH" "$(cmd_payload "awk '{print}' .env")"                 "blocks awk on .env"
+  assert_deny  "$PSH" "$(cmd_payload 'xxd .env')"                           "blocks xxd on .env"
+  assert_deny  "$PSH" "$(cmd_payload 'sed -n 1p .env')"                     "blocks sed on .env"
+  assert_deny  "$PSH" "$(cmd_payload 'od -c .env')"                         "blocks od on .env"
+  assert_deny  "$PSH" "$(cmd_payload 'strings .ssh/id_rsa')"                "blocks strings on .ssh file"
+  assert_deny  "$PSH" "$(cmd_payload "python -c \"open('.env').read()\"")"  "blocks python -c reading .env"
+  assert_deny  "$PSH" "$(cmd_payload "python3 -c 'print(open(\".env\").read())'")" "blocks python3 -c reading .env"
+  assert_deny  "$PSH" "$(cmd_payload "ruby -e 'puts File.read(\".env\")'")" "blocks ruby -e reading .env"
   assert_allow "$PSH" "$(cmd_payload 'cat README.md')"                      "allows cat README.md"
   assert_allow "$PSH" "$(cmd_payload 'grep -r DATABASE_URL src/')"          "allows grep without .env path"
   assert_allow "$PSH" "$(cmd_payload 'cat README.md | grep .env')"          "allows grep for .env string (not reading the file)"
   assert_allow "$PSH" "$(cmd_payload 'uv run python app.py')"               "allows normal commands"
+  assert_allow "$PSH" "$(cmd_payload "python -c 'print(1+1)'")"             "allows inline python without secret file"
 fi
 
 # ── session-start.sh ─────────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 input=$(cat)
 cmd=$(echo "$input" | jq -r '.tool_input.command // empty')
 

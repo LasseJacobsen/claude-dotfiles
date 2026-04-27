@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # Pick a working python: on Windows, `python3` often resolves to the Microsoft
 # Store stub which prints an install prompt instead of running. Probe before use.
 if python3 -c '' >/dev/null 2>&1; then PY=python3
@@ -53,7 +54,7 @@ print(texts[-1] if texts else "")
 PYEOF
 )
 
-if echo "$last" | grep -iqE "I (can't|cannot) access|from memory|I think |if you could (share|provide)"; then
+if echo "$last" | grep -iqE "I (can't|cannot) access|from memory|if you could (share|provide)"; then
   echo "Response contains uncertain or speculative phrasing. Verify before completing." >&2
   exit 2
 fi

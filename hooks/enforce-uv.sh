@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # Redirect pip/poetry/conda/bare-pytest to their uv equivalents.
 # Bash rather than Python so we don't pay Python startup on every Bash call —
 # this hook fires on the PreToolUse Bash hot path. A cheap substring pre-filter
@@ -20,23 +21,28 @@ cmd=$(echo "$input" | jq -r '.tool_input.command // empty')
 # anchor keeps matches scoped to the start of a pipeline segment so that text
 # like 'pip install' inside an argument string (e.g. gh pr create --body
 # "...pip install...") does not trigger.
+#
+# END requires whitespace/segment-boundary rather than just non-alphanumeric:
+# bare 'pytest' followed by '-' would otherwise match 'pytest-watch' /
+# 'pytest-watcher' / 'python -m pytest-cov'.
 STAGE='(^|&&|\|\||;)[[:space:]]*'
-END='([^a-zA-Z0-9_]|$)'
-ALT='pip[3]?[[:space:]]+install|pip[3]?[[:space:]]+uninstall|poetry[[:space:]]+add|poetry[[:space:]]+install|conda[[:space:]]+install|python[[:space:]]+-m[[:space:]]+pytest|python[[:space:]]+-m[[:space:]]+ruff|pytest'
+END='([[:space:]]|;|&|\||$)'
+ALT='pip[3]?[[:space:]]+install|pip[3]?[[:space:]]+uninstall|poetry[[:space:]]+add|poetry[[:space:]]+install|conda[[:space:]]+install|python[3]?[[:space:]]+-m[[:space:]]+pytest|python[3]?[[:space:]]+-m[[:space:]]+ruff|uvx[[:space:]]+pytest|uvx[[:space:]]+ruff|pytest'
 
 match=$(echo "$cmd" | grep -oE "${STAGE}(${ALT})${END}" | head -1)
 [[ -z "$match" ]] && exit 0
 
 # Map the matched pattern back to a suggested replacement.
+# Order matters: more specific patterns first (uvx/python wrappers) before
+# the bare-tool fallbacks.
 case "$match" in
   *pip*install*)     fix='uv add' ;;
   *pip*uninstall*)   fix='uv remove' ;;
   *poetry*add*)      fix='uv add' ;;
   *poetry*install*)  fix='uv sync' ;;
   *conda*install*)   fix='uv add' ;;
-  *python*pytest*)   fix='uv run pytest' ;;
-  *python*ruff*)     fix='uv run ruff' ;;
   *pytest*)          fix='uv run pytest' ;;
+  *ruff*)            fix='uv run ruff' ;;
   *)                 fix='the uv equivalent' ;;
 esac
 
