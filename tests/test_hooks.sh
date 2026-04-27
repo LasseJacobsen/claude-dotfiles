@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Hook unit tests. Run from the dotfiles root: bash tests/test_hooks.sh
-# Requirements: bash, a working python (python3 or python), uv (for Python hooks and ruff/ty checks)
+# Requirements: bash, a working python (python3 or python), uv (for Python hooks and ruff checks)
 # Optional:     jq (required for hooks that parse stdin JSON via jq internally)
 set -euo pipefail
 
@@ -298,31 +298,6 @@ else
     fi
   else
     skip "ruff not available — skipping .py formatting test"
-  fi
-fi
-
-# ── ty-check.sh ───────────────────────────────────────────────────────────────
-section "ty-check.sh"
-TCH="ty-check.sh"
-
-if ! $HAS_JQ; then
-  skip "jq not in PATH — ty-check.sh uses jq internally; install jq to run these tests"
-else
-  assert_sh_exit 0 "$TCH" "$(file_payload '/some/file.txt')"         "skips non-.py file"
-  assert_sh_exit 0 "$TCH" "$(file_payload '/nonexistent/path.py')"   "skips missing .py file"
-
-  CLEAN_PY="$TMPDIR_BASE/clean.py"
-  echo "x: int = 1" > "$CLEAN_PY"
-
-  if uvx ty@0.0.32 --version >/dev/null 2>&1; then
-    code=$(sh_exit "$TCH" "$(file_payload "$CLEAN_PY")")
-    if [[ "$code" -eq 0 ]]; then
-      ok "ty passes on clean .py file"
-    else
-      fail "ty-check should exit 0 on clean file (got $code)"
-    fi
-  else
-    skip "ty not available — skipping type-check tests"
   fi
 fi
 

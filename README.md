@@ -18,7 +18,6 @@ claude-dotfiles/
 │   ├── block-big-binaries.sh           # PreToolUse: block committing large or binary result files
 │   ├── enforce-uv.sh                   # PreToolUse: redirect pip/poetry/conda → uv
 │   ├── ruff-after-edit.sh              # PostToolUse: ruff lint+format on every .py edit
-│   ├── ty-check.sh                     # PostToolUse: ty type-check on every .py edit
 │   ├── nbstripout.sh                   # PostToolUse: strip notebook outputs on .ipynb edits
 │   ├── check-claims.sh                 # Stop: block uncertain/speculative responses
 │   ├── precompact-backup.sh            # PreCompact: back up transcript before context compaction
@@ -189,7 +188,6 @@ If you need a real security boundary, run Claude Code in a sandboxed environment
 | Hook | Trigger | What it does |
 |------|---------|--------------|
 | `ruff-after-edit.sh` | `Write`/`Edit`/`MultiEdit` on `.py` | Runs `ruff check --fix` then `ruff format` in-place; always exits 0 |
-| `ty-check.sh` | `Write`/`Edit`/`MultiEdit` on `.py` | Runs `ty check`; exits 2 if type errors found so Claude retries |
 | `nbstripout.sh` | `Write`/`NotebookEdit` on `*/notebooks/*.ipynb` | Strips cell outputs via `nbstripout`; always exits 0. Scoped to `notebooks/` so scratch notebooks keep their outputs for iterative work. The matcher excludes `Edit`/`MultiEdit` because those are line-based operations that don't make sense on a JSON notebook. |
 
 #### Opt-in: pytest on save (`pytest-lf.sh`)
