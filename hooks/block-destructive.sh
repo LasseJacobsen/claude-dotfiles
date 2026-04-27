@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -uo pipefail
 input=$(cat)
+
+# Fast path: every deny pattern below requires one of these tokens in the
+# command. Skip jq + grep spawns when none of them appears in the input.
+case "$input" in
+  *"rm "*|*"git push"*|*"git reset"*|*"chmod "*|*"curl "*|*"DROP "*|*":(){"*) ;;
+  *) exit 0 ;;
+esac
+
 cmd=$(echo "$input" | jq -r '.tool_input.command // empty')
 
 # grep -E does not honor \s. The earlier version used (\s|$), which silently
