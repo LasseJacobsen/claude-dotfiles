@@ -38,10 +38,12 @@ claude-dotfiles/
 ## Setup (new machine)
 
 ```bash
-git clone <this-repo> ~/claude-dotfiles
-cd ~/claude-dotfiles
+git clone <this-repo>
+cd <repo-dir>
 bash install.sh
 ```
+
+The clone location doesn't matter — `install.sh` resolves paths relative to its own location.
 
 `install.sh` does the following:
 1. Auto-installs `jq` if missing (winget / brew / apt / yum)
@@ -167,11 +169,20 @@ Hooks live in `~/.claude/hooks/` and run deterministically on every matching too
 
 | Hook | Trigger | What it blocks |
 |------|---------|----------------|
-| `block-destructive.sh` | Any `Bash` | `rm -rf /`, `rm -rf ~`, `git push --force`, `chmod -R 777`, pipe-to-shell, fork bomb, `DROP TABLE` |
+| `block-destructive.sh` | Any `Bash` | `rm -rf /`, `rm -rf ~`, `git push --force`, `chmod -R 777`, pipe-to-shell, fork bomb, `DROP TABLE` (best-effort — see below) |
 | `block-git-main.sh` | Any `Bash` | `git commit`/`push` while on `main`, `master`, `prod`, or `production` |
 | `block-big-binaries.sh` | `git add` / `git commit -a` | Files >50 MB or with binary result extensions (`.h5`, `.vtk`, `.pkl`, `.npz`, etc.) |
 | `enforce-uv.sh` | Any `Bash` | Denies `pip install`, `pip uninstall`, `poetry add`, `poetry install`, `conda install`, `python -m pytest`, `python -m ruff`, and bare `pytest`. The deny reason includes the suggested uv replacement (e.g. `uv add`, `uv run pytest`). |
-| `protect-secrets.sh` | Any `Bash` | `cat`/`less`/`head`/`tail` on `.env*`, `*.pem`, `*.key`, `credentials.json`, `.ssh/` paths (Bash bypass of `permissions.deny` — issue #6631) |
+| `protect-secrets.sh` | Any `Bash` | Read-tools (`cat`/`less`/`head`/`tail`/`awk`/`sed`/`xxd`/`od`/`strings`/`nl`/`tac`/`dd`) and inline interpreters (`python -c`, `ruby -e`, etc.) when targeting `.env*`, `*.pem`, `*.key`, `credentials.json`, `.ssh/` paths. Bash bypass of `permissions.deny` (issue #6631). Best-effort tripwire — see posture note below. |
+
+#### Posture, not protection
+
+`block-destructive.sh` and `protect-secrets.sh` are **tripwires against accidental damage and routine disclosure, not security boundaries.** A motivated caller can bypass them with shell tricks the regexes don't model:
+
+- `block-destructive.sh` doesn't catch `rm -rf "$HOME"`, `rm -rf ${HOME}`, `rm -rf /etc`, `dd if=/dev/zero of=/dev/sda`, `mkfs`, `> /dev/sda`, `find / -delete`, `shred`, `wipefs`, separated `-r -f` flags, etc.
+- `protect-secrets.sh` doesn't catch process substitution (`<(cat .env)`), here-docs, base64-piped reads, or arbitrary script files that read secrets at runtime.
+
+If you need a real security boundary, run Claude Code in a sandboxed environment (container, VM, or dedicated user) and rely on filesystem permissions instead of regex matching.
 
 ### PostToolUse
 
@@ -198,7 +209,7 @@ The hook skips automatically when there's no `tests/` directory or pytest isn't 
 
 | Hook | What it does |
 |------|--------------|
-| `check-claims.sh` | Parses the transcript JSONL to extract the last assistant text block and checks it for uncertain/speculative phrases ("I can't access", "from memory", "I think", "if you could share/provide"). Blocks completion if found. Ignores tool results and file payloads that happen to contain those phrases. |
+| `check-claims.sh` | Parses the transcript JSONL to extract the last assistant text block and checks it for uncertain/speculative phrases ("I can't access", "from memory", "if you could share/provide"). Blocks completion if found. Ignores tool results and file payloads that happen to contain those phrases. |
 
 ### PreCompact
 
