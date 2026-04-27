@@ -51,12 +51,20 @@ fi
 # uv is required by Serena, the nbstripout install, and PyRight bootstrapping.
 command -v uv >/dev/null || { echo "uv is required: https://github.com/astral-sh/uv"; exit 1; }
 
-# Back up any pre-existing ~/.claude that wasn't created by this script
+# Back up any pre-existing ~/.claude that wasn't created by this script.
+# Abort on backup failure rather than clobber the user's settings: the
+# install steps below overwrite ~/.claude in place, so a missing backup
+# means lost work. cp -r (not mv) tolerates open file handles from a
+# running Claude Code session; if even that fails, ask the user to retry
+# from outside Claude Code.
 if [[ -e "$TARGET" && ! -L "$TARGET" && ! -f "$TARGET/.managed-by-dotfiles" ]]; then
   backup="$TARGET.backup.$(date +%Y%m%d-%H%M%S)"
   log "Backing up existing $TARGET → $backup"
-  cp -r "$TARGET" "$backup" \
-    || log "Warning: backup failed — continuing anyway"
+  if ! cp -r "$TARGET" "$backup"; then
+    log "Error: backup failed. Refusing to overwrite $TARGET without one."
+    log "If Claude Code is running, exit it and re-run install.sh."
+    exit 1
+  fi
 fi
 
 mkdir -p "$TARGET/hooks"
@@ -125,10 +133,16 @@ if [[ ! -f "$TARGET/settings.local.json" && -f "$REPO/settings.local.example.jso
 fi
 
 # nbstripout global git filter — covers humans staging notebooks too, not just Claude.
+# nbstripout --install writes a `clean = nbstripout` filter that relies on the
+# bare command being on PATH. Non-login shells (e.g. GUI git clients, some CI
+# runners) often skip ~/.local/bin, turning every `git add` of a notebook into
+# a fatal error. Resolve to the absolute path so the filter works regardless.
 log "Registering nbstripout as a global git filter..."
 if uv tool install --quiet nbstripout 2>/dev/null && command -v nbstripout >/dev/null 2>&1; then
   if nbstripout --install --global 2>/dev/null; then
-    log "nbstripout registered globally"
+    NBS_ABS="$(command -v nbstripout)"
+    git config --global filter.nbstripout.clean "$NBS_ABS"
+    log "nbstripout registered globally ($NBS_ABS)"
   else
     log "Warning: nbstripout install succeeded but --install --global failed (run it manually)"
   fi
@@ -153,6 +167,15 @@ fi
 log "Installing pyright[nodejs] into Serena's env..."
 SERENA_PYTHON=$(uvx --from git+https://github.com/oraios/serena python \
   -c "import sys; print(sys.executable)" 2>/dev/null || true)
+# Under Git Bash, sys.executable returns a Windows path (C:\...\python.exe).
+# uv pip --python wants a POSIX-style path; cygpath translates it.
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)
+    if [[ -n "$SERENA_PYTHON" ]] && command -v cygpath >/dev/null 2>&1; then
+      SERENA_PYTHON=$(cygpath -u "$SERENA_PYTHON" 2>/dev/null || echo "$SERENA_PYTHON")
+    fi
+    ;;
+esac
 if [[ -n "$SERENA_PYTHON" ]]; then
   if uv pip install --python "$SERENA_PYTHON" "pyright[nodejs]" --quiet 2>/dev/null; then
     log "pyright[nodejs] installed"
