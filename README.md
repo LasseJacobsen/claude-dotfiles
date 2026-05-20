@@ -59,6 +59,7 @@ Then **start a new Claude Code session** — MCP servers and hooks are loaded at
 - Symlinks for files require [Developer Mode](https://learn.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development) or admin. Without it, `install.sh` falls back to copying — re-run after changes.
 - `uv` installs to `~/.local/bin` — make sure it's on your PATH before starting Claude Code.
 - Run `install.sh` in Git Bash (not PowerShell/cmd).
+- Corporate security tools (EDR/AppLocker) sometimes block execution of `find` on locked-down machines (`/usr/bin/find: Permission denied`). `install.sh` and the test suite avoid `find` for this reason. If a *different* command fails the same way, it's the same class of issue — report it. The most common one is `uv` itself; see [When `uv` is blocked](#when-uv-is-blocked-corporate-edr-or-application-control).
 - Several hooks require `jq`. Claude Code ships jq in its bundled environment so hooks always work in sessions. `install.sh` installs jq automatically via `winget`; if that fails, install it manually before running `make test`:
   ```
   winget install jqlang.jq
@@ -130,7 +131,7 @@ In a Claude Code session, run `/mcp` — `serena` should appear with status `con
 
 **Serena appears but shows as disconnected / errors on tool calls:**
 
-1. Clear the uvx cache and reinstall: `uv cache clean && bash install.sh`
+1. Clear the uvx cache and reinstall: `uv cache clean && bash install.sh` (this assumes `uv` can run — if `uv --version` itself fails with *Permission denied*, see [When `uv` is blocked](#when-uv-is-blocked-corporate-edr-or-application-control) below).
 2. On Windows, verify pyright's Node.js dependency was installed. `install.sh` does this automatically, but if it failed silently check the install output for warnings. Re-run `install.sh` to retry.
 3. Check for a `.serena/` directory in your project root — Serena creates it on first index. If it's absent, Serena may not have finished starting. Wait ~60s after opening the session.
 
@@ -149,11 +150,30 @@ exclude_dirs:
   - build
 ```
 
+#### When `uv` is blocked (corporate EDR or application control)
+
+**Symptom:** `uv …: Permission denied`. `install.sh` prints a single "uv is installed but cannot be executed" warning and skips Serena, the nbstripout git filter, and pyright; `/mcp` shows `serena` as disconnected.
+
+**Why:** some managed/corporate machines run an EDR or application-control product that blocks specific executables by reputation — `uv.exe` is a common target (we've also seen `find.exe` and even `System32\whoami.exe` blocked on the same machine). This is **not** an NTFS-permission or PATH problem, so it can't be fixed by relocating or reinstalling uv.
+
+**Confirm it (read-only, in PowerShell):**
+
+```powershell
+uv --version                                          # → "Permission denied" if blocked
+(Get-Item (Get-Command uv).Source).GetAccessControl().Owner   # you usually still own the file — rules out an ACL issue
+```
+
+**Fix:** ask IT / security to **allowlist `uv.exe` and `uvx.exe`** in the EDR / application-control console. Give them the path printed by `command -v uv` (Git Bash) or `(Get-Command uv).Source` (PowerShell). There is no safe script-side workaround — bypassing the control (renaming/repacking the binary, disabling protection) is out of scope.
+
+**Meanwhile:** the rest of the setup works without uv — hooks, permissions, env, commands, and skills all install and run. You only lose Serena's semantic navigation, notebook output stripping, and pyright. A disconnected `serena` in `/mcp` is expected until uv is allowlisted.
+
 #### Updating Serena
 
 ```bash
 uv cache clean   # forces a fresh fetch from GitHub on next session start
 ```
+
+(Presupposes `uv` can run — see [When `uv` is blocked](#when-uv-is-blocked-corporate-edr-or-application-control) if it can't.)
 
 ---
 
