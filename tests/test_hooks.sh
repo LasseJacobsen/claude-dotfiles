@@ -365,9 +365,18 @@ else
   FAKE_TRANSCRIPT="$TMPDIR_BASE/session.jsonl"
   echo '{"role":"user","content":"hello"}' > "$FAKE_TRANSCRIPT"
 
-  BACKUP_BEFORE=$(find "$HOME/.claude/backups" -name "compact-*.jsonl" 2>/dev/null | wc -l)
+  # Count backup files without `find` — some corporate EDR blocks the find binary.
+  count_backups() {
+    local n=0 f
+    for f in "$HOME/.claude/backups"/compact-*.jsonl; do
+      if [[ -e "$f" ]]; then n=$((n + 1)); fi   # n=$((..)) not ((n++)): set -e safe
+    done
+    echo "$n"
+  }
+
+  BACKUP_BEFORE=$(count_backups)
   assert_sh_exit 0 "$PCB" "$(compact_payload false  "$FAKE_TRANSCRIPT")" "exits 0 and backs up transcript"
-  BACKUP_AFTER=$(find "$HOME/.claude/backups" -name "compact-*.jsonl" 2>/dev/null | wc -l)
+  BACKUP_AFTER=$(count_backups)
 
   assert_sh_exit 0 "$PCB" "$(compact_payload false  '/nonexistent')"      "exits 0 when transcript missing"
   assert_sh_exit 0 "$PCB" "$(compact_payload true   '/nonexistent')"      "exits 0 with arbitrary extra payload fields (forward compat)"
