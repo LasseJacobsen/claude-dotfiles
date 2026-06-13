@@ -48,26 +48,26 @@ if ! command -v jq >/dev/null 2>&1; then
     || log "Note: jq unavailable in this shell — hooks work in Claude Code (jq is bundled); 'make test' will skip jq-dependent tests."
 fi
 
-# uv powers Serena (MCP), the nbstripout git filter, and pyright bootstrapping.
+# uv powers the nbstripout git filter.
 # Probe whether uv can actually RUN — not just whether it's on PATH. On
 # locked-down corporate machines, application-control/EDR can block uv.exe from
 # executing (the same class of block that hits find.exe and whoami.exe) even
 # though uv is installed and owned by the user. When that happens we degrade:
 # install the uv-independent core and skip the uv-dependent extras with one
-# clear message instead of three confusing failures.
+# clear message instead of confusing failures.
 UV_OK=false
 if command -v uv >/dev/null 2>&1; then
   if uv --version >/dev/null 2>&1; then
     UV_OK=true
   else
     log "Warning: uv is installed ($(command -v uv)) but cannot be executed —"
-    log "  your machine's application-control/EDR policy is blocking it. Serena,"
-    log "  the nbstripout git filter, and pyright will be SKIPPED; everything"
-    log "  else installs normally and works without uv. To enable them, ask IT"
-    log "  to allowlist uv.exe and uvx.exe. See README → 'When uv is blocked'."
+    log "  your machine's application-control/EDR policy is blocking it. The"
+    log "  nbstripout git filter will be SKIPPED; everything else installs"
+    log "  normally and works without uv. To enable it, ask IT to allowlist"
+    log "  uv.exe and uvx.exe. See README → 'When uv is blocked'."
   fi
 else
-  log "Warning: uv not found — Serena, nbstripout, and pyright will be skipped."
+  log "Warning: uv not found — the nbstripout git filter will be skipped."
   log "  Install uv (https://github.com/astral-sh/uv) and re-run install.sh."
 fi
 
@@ -167,44 +167,8 @@ if $UV_OK; then
   else
     log "Warning: could not install nbstripout via uv — notebook output stripping limited to the Claude hook"
   fi
-
-  # Warm the uvx cache for Serena so the first MCP startup is fast
-  log "Warming Serena uvx cache..."
-  if uvx --from git+https://github.com/oraios/serena serena --version 2>/dev/null; then
-    log "Serena cache warmed"
-  else
-    log "Warning: Serena cache warming failed — first session start will be slow (~30s)"
-    log "  If Serena never connects, run: uv cache clean && bash install.sh"
-  fi
-
-  # pyright (Serena's Python language server) needs Node.js to run.
-  # Its default nodeenv fallback fails on some systems (notably Windows).
-  # Installing the nodejs-wheel-binaries extra directly into Serena's env fixes this.
-  # Note: --with pyright[nodejs] in uvx args does not work here because pyright is
-  # launched as a subprocess by serena and does not inherit the uvx overlay's packages.
-  log "Installing pyright[nodejs] into Serena's env..."
-  SERENA_PYTHON=$(uvx --from git+https://github.com/oraios/serena python \
-    -c "import sys; print(sys.executable)" 2>/dev/null || true)
-  # Under Git Bash, sys.executable returns a Windows path (C:\...\python.exe).
-  # uv pip --python wants a POSIX-style path; cygpath translates it.
-  case "$(uname -s)" in
-    MINGW*|MSYS*|CYGWIN*)
-      if [[ -n "$SERENA_PYTHON" ]] && command -v cygpath >/dev/null 2>&1; then
-        SERENA_PYTHON=$(cygpath -u "$SERENA_PYTHON" 2>/dev/null || echo "$SERENA_PYTHON")
-      fi
-      ;;
-  esac
-  if [[ -n "$SERENA_PYTHON" ]]; then
-    if uv pip install --python "$SERENA_PYTHON" "pyright[nodejs]" --quiet 2>/dev/null; then
-      log "pyright[nodejs] installed"
-    else
-      log "Warning: pyright[nodejs] install failed — go-to-definition may not work"
-    fi
-  else
-    log "Warning: could not locate Serena Python env — run 'uv cache clean' then re-run install.sh"
-  fi
 else
-  log "Skipping Serena, nbstripout filter, and pyright (uv unavailable — see note above)."
+  log "Skipping nbstripout filter (uv unavailable — see note above)."
 fi
 
 # Prevent settings.local.json from showing up as an untracked file in project repos
@@ -217,16 +181,7 @@ fi
 touch "$TARGET/.managed-by-dotfiles"
 
 log ""
-if $UV_OK; then
-  log "Done. Start a new Claude Code session to activate Serena and hooks."
-else
-  log "Done. Start a new Claude Code session to activate hooks (Serena unavailable — uv is blocked)."
-fi
+log "Done. Start a new Claude Code session to activate hooks."
 log ""
 log "Verify setup:"
 log "  Hooks:  run 'bash tests/test_hooks.sh' from the dotfiles root"
-if $UV_OK; then
-  log "  Serena: open a Claude Code session and run /mcp — 'serena' should appear as connected"
-else
-  log "  Serena: unavailable until uv can run (ask IT to allowlist uv.exe — see README)"
-fi

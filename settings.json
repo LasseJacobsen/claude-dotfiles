@@ -7,20 +7,6 @@
     "LC_ALL": "C.UTF-8",
     "UV_NO_SYNC": "0"
   },
-  "mcpServers": {
-    "serena": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/oraios/serena",
-        "serena",
-        "start-mcp-server",
-        "--context",
-        "claude-code",
-        "--project-from-cwd"
-      ]
-    }
-  },
   "permissions": {
     "deny": [
       "Bash(sudo *)",
