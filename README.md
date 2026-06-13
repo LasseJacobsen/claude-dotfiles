@@ -7,7 +7,7 @@ Reusable Claude Code configuration, hooks, skills, and commands — versioned as
 ```
 claude-dotfiles/
 ├── CLAUDE.md                           # Non-obvious overrides (commit rules, naming)
-├── settings.json                       # Claude Code settings (MCP servers, hooks, permissions)
+├── settings.json                       # Claude Code settings (hooks, permissions, env)
 ├── settings.local.example.json         # Template for machine-specific overrides
 ├── install.sh                          # One-shot setup script
 ├── Makefile                            # make install / make test
@@ -50,9 +50,8 @@ The clone location doesn't matter — `install.sh` resolves paths relative to it
 5. Copies skills into `~/.claude/skills/`
 6. Seeds `~/.claude/settings.local.json` from `settings.local.example.json` on first run
 7. Installs `nbstripout` and registers it as a global git filter (strips notebook outputs on every `git add`, regardless of who staged the file)
-8. Warms the Serena uvx cache and installs `pyright[nodejs]` into Serena's env
 
-Then **start a new Claude Code session** — MCP servers and hooks are loaded at startup.
+Then **start a new Claude Code session** — hooks are loaded at startup.
 
 ### Windows notes
 
@@ -98,61 +97,22 @@ Tests pipe crafted JSON payloads into each hook and assert exit codes and JSON o
 
 ---
 
-## MCP Servers
+## uv
 
-### Serena
+[`uv`](https://github.com/astral-sh/uv) powers the global `nbstripout` git filter (strips notebook outputs on every `git add`). It's optional — everything else installs and runs without it.
 
-Code intelligence across 40+ languages via LSP. Gives Claude semantic search, go-to-definition, find-references, and symbol navigation inside any project.
-
-**Dependency:** [`uv`](https://github.com/astral-sh/uv)
+**Install uv:**
 
 ```powershell
 # Windows
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-Serena is configured globally in `settings.json`, so **every project gets it automatically** — no per-project setup needed. The `--project-from-cwd` flag means Serena auto-detects the active project directory when a Claude Code session starts.
-
-#### First-time startup
-
-The first time Serena runs in a project it downloads dependencies via uvx (~30 seconds) and indexes the project (~5–60 seconds depending on size). Subsequent starts are fast. `install.sh` pre-warms the uvx download so only the indexing happens on first use.
-
-#### Verifying Serena is running
-
-In a Claude Code session, run `/mcp` — `serena` should appear with status `connected`. Or ask Claude to call a Serena tool directly: *"use serena to search for function X"*.
-
-#### Troubleshooting
-
-**Serena doesn't appear in `/mcp`:**
-
-1. Confirm `~/.claude/settings.json` has the `serena` MCP entry — re-run `install.sh` if missing.
-2. Start a **new** Claude Code session — MCP servers load at startup, not mid-session.
-3. Check that `uv` is on PATH: `uv --version`. If missing, re-install uv and re-run `install.sh`.
-
-**Serena appears but shows as disconnected / errors on tool calls:**
-
-1. Clear the uvx cache and reinstall: `uv cache clean && bash install.sh` (this assumes `uv` can run — if `uv --version` itself fails with *Permission denied*, see [When `uv` is blocked](#when-uv-is-blocked-corporate-edr-or-application-control) below).
-2. On Windows, verify pyright's Node.js dependency was installed. `install.sh` does this automatically, but if it failed silently check the install output for warnings. Re-run `install.sh` to retry.
-3. Check for a `.serena/` directory in your project root — Serena creates it on first index. If it's absent, Serena may not have finished starting. Wait ~60s after opening the session.
-
-**Serena is slow / hangs on large repos:**
-
-Serena indexes all files on startup. For repos > 50k files, add a `.serena/config.yaml` to limit scope:
-
-```yaml
-project_root: .
-exclude_dirs:
-  - .git
-  - node_modules
-  - __pycache__
-  - .venv
-  - dist
-  - build
-```
+`install.sh` installs `nbstripout` via uv and registers it as a global git filter. After installing uv, re-run `install.sh`.
 
 #### When `uv` is blocked (corporate EDR or application control)
 
-**Symptom:** `uv …: Permission denied`. `install.sh` prints a single "uv is installed but cannot be executed" warning and skips Serena, the nbstripout git filter, and pyright; `/mcp` shows `serena` as disconnected.
+**Symptom:** `uv …: Permission denied`. `install.sh` prints a single "uv is installed but cannot be executed" warning and skips the nbstripout git filter.
 
 **Why:** some managed/corporate machines run an EDR or application-control product that blocks specific executables by reputation — `uv.exe` is a common target (we've also seen `find.exe` and even `System32\whoami.exe` blocked on the same machine). This is **not** an NTFS-permission or PATH problem, so it can't be fixed by relocating or reinstalling uv.
 
@@ -165,15 +125,7 @@ uv --version                                          # → "Permission denied" 
 
 **Fix:** ask IT / security to **allowlist `uv.exe` and `uvx.exe`** in the EDR / application-control console. Give them the path printed by `command -v uv` (Git Bash) or `(Get-Command uv).Source` (PowerShell). There is no safe script-side workaround — bypassing the control (renaming/repacking the binary, disabling protection) is out of scope.
 
-**Meanwhile:** the rest of the setup works without uv — hooks, permissions, env, commands, and skills all install and run. You only lose Serena's semantic navigation, notebook output stripping, and pyright. A disconnected `serena` in `/mcp` is expected until uv is allowlisted.
-
-#### Updating Serena
-
-```bash
-uv cache clean   # forces a fresh fetch from GitHub on next session start
-```
-
-(Presupposes `uv` can run — see [When `uv` is blocked](#when-uv-is-blocked-corporate-edr-or-application-control) if it can't.)
+**Meanwhile:** the rest of the setup works without uv — hooks, permissions, env, commands, and skills all install and run. You only lose notebook output stripping.
 
 ---
 
@@ -240,12 +192,6 @@ Install-Module -Name BurntToast -Scope CurrentUser
 ```
 
 If BurntToast is not installed, `notify.sh` silently falls through — no error. macOS and Linux work out of the box (no install).
-
----
-
-## Project-level settings (`.claude/settings.json`)
-
-The `.claude/settings.json` inside this repo is a *project-level* settings file — it applies when Claude Code is run from inside the dotfiles directory itself. It contains only the Serena MCP entry so that Serena works here too. Hooks, permissions, and env vars live in the root `settings.json` that `install.sh` deploys to `~/.claude/settings.json`; those apply globally to every project.
 
 ---
 
