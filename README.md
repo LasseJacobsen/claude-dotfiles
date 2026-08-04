@@ -23,6 +23,10 @@ claude-dotfiles/
 │   ├── session-start.sh                # SessionStart: inject branch/status/recent commits as context
 │   └── notify.sh                       # Notification: cross-platform desktop notification bridge
 ├── skills/
+│   ├── bro/
+│   │   └── SKILL.md                    # Skill: restate last message in plain human language
+│   ├── bruh/
+│   │   └── SKILL.md                    # Skill: restate last message bluntly, no jargon or hedging
 │   └── git-pr-message/
 │       └── SKILL.md                    # Skill: generate PR descriptions from git log
 ├── commands/
