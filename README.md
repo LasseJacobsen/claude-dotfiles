@@ -33,7 +33,11 @@ claude-dotfiles/
 │   │   └── SKILL.md
 │   ├── iso-24495-4/                    # Vendored: 4 gap-analysis CLIs + rule engine,
 │   │                                   #   plus references/ and assets/
-│   └── iso-24495-text-audit/scripts/   # Vendored: text-audit CLI (uses the engine above)
+│   ├── iso-24495-text-audit/scripts/   # Vendored: text-audit CLI (uses the engine above)
+│   ├── pyspark-style/
+│   │   └── SKILL.md                    # Skill: PySpark style rules (Palantir guide), applied at write time
+│   └── pyspark-audit/
+│       └── SKILL.md                    # Skill: audit .py files against pyspark-style (manual only)
 ├── output-styles/
 │   └── iso-24495.md                    # Output style: plain-language rules on every response
 ├── commands/
@@ -226,6 +230,8 @@ If BurntToast is not installed, `notify.sh` silently falls through — no error.
 | `iso-24495-5` | Automatic on complex multi-section documents |
 | `iso-24495-code` | Automatic on code readability (naming, structure) |
 | `iso-24495-text-audit` | Manual only — "audit this file/directory for plain language". Needs Node 22.18+ |
+| `pyspark-style` | Automatic on writing/restructuring PySpark code — column refs, joins, windows, chaining |
+| `pyspark-audit` | Manual only — "/pyspark-audit <file-or-dir>", checks existing files against `pyspark-style` |
 
 ## Plain language (ISO 24495)
 
@@ -266,6 +272,23 @@ The other 12 vendored files are byte-identical to upstream 0.6.2. To check, diff
 Still left out: upstream's Codex CLI config (`agents/openai.yaml`) and its `bun:test` suites. `tests/test_audit.sh` covers the CLI contracts instead.
 
 To update: re-copy the `SKILL.md` files, `output-styles/iso-24495.md`, and the directories above, then re-apply the eleven `bun` → `node` changes and run `bash tests/test_audit.sh`. That suite fails if a `SKILL.md` names a file the copy missed, which is the bug that made this section necessary.
+
+## PySpark style (Palantir guide)
+
+The `pyspark-style` and `pyspark-audit` skills adapt the rules of the
+[Palantir PySpark style guide](https://github.com/palantir/pyspark-style-guide)
+(MIT, Copyright (c) 2020 Palantir Technologies, Inc.). The prose is rewritten for skill use;
+the recommendations are theirs.
+
+The two skills mirror the ISO pair:
+
+- **`pyspark-style`** activates whenever Claude writes or restructures PySpark code and governs
+  column references, schema contracts, joins, window frames, and chaining. Formatting stays with
+  the `ruff-after-edit` hook.
+- **`pyspark-audit`** never auto-activates. Invoke it with a file or directory to get findings
+  (file, line, rule, snippet, effect) against the `pyspark-style` rules. Unlike
+  `iso-24495-text-audit` it ships no script — the checks are judgement calls (chain length,
+  schema contracts), so the model performs them by reading the code.
 
 ## Commands
 
