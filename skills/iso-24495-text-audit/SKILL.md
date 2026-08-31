@@ -18,10 +18,10 @@ Audit only the path the user selects. Report mechanical findings so the user can
 3. State the selected file or directory before running the script.
 4. Treat an explicitly supplied directory as approval to read that directory.
 5. Ask before expanding the audit beyond the supplied path.
-6. Run the script with Bun:
+6. Run the script with Node:
 
 ```text
-bun <skill-directory>/scripts/audit-text-cli.ts <file-or-directory> --project-dir <project-directory>
+node <skill-directory>/scripts/audit-text-cli.ts <file-or-directory> --project-dir <project-directory>
 ```
 
 7. Report every finding with its file, line, rule, and explanation.

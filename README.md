@@ -29,8 +29,11 @@ claude-dotfiles/
 │   │   └── SKILL.md                    # Skill: restate last message bluntly, no jargon or hedging
 │   ├── git-pr-message/
 │   │   └── SKILL.md                    # Skill: generate PR descriptions from git log
-│   └── iso-24495-*/                    # Seven plain-language skills (see Plain language section)
-│       └── SKILL.md
+│   ├── iso-24495-*/                    # Seven plain-language skills (see Plain language section)
+│   │   └── SKILL.md
+│   ├── iso-24495-4/                    # Vendored: 4 gap-analysis CLIs + rule engine,
+│   │                                   #   plus references/ and assets/
+│   └── iso-24495-text-audit/scripts/   # Vendored: text-audit CLI (uses the engine above)
 ├── output-styles/
 │   └── iso-24495.md                    # Output style: plain-language rules on every response
 ├── commands/
@@ -67,7 +70,8 @@ Then **start a new Claude Code session** — hooks are loaded at startup.
 - Symlinks for files require [Developer Mode](https://learn.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development) or admin. Without it, `install.sh` falls back to copying — re-run after changes.
 - `uv` installs to `~/.local/bin` — make sure it's on your PATH before starting Claude Code.
 - Run `install.sh` in Git Bash (not PowerShell/cmd).
-- Corporate security tools (EDR/AppLocker) sometimes block execution of `find` on locked-down machines (`/usr/bin/find: Permission denied`). `install.sh` and the test suite avoid `find` for this reason. If a *different* command fails the same way, it's the same class of issue — report it. The most common one is `uv` itself; see [When `uv` is blocked](#when-uv-is-blocked-corporate-edr-or-application-control).
+- Corporate security tools (EDR/AppLocker) sometimes block ordinary binaries on locked-down machines (`/usr/bin/find: Permission denied`). We have seen `find`, `sort`, `curl`, and `uv` blocked this way, so `install.sh` and the test suites avoid `find` and `sort`. If a *different* command fails the same way, it's the same class of issue — report it. The most common one is `uv` itself; see [When `uv` is blocked](#when-uv-is-blocked-corporate-edr-or-application-control).
+  - **A blocked binary inside a pipeline is worse than a visible error.** The pipeline yields nothing, so a test can pass while proving nothing. `tests/test_audit.sh` therefore counts what it extracted and fails when it finds none.
 - Several hooks require `jq`. Claude Code ships jq in its bundled environment so hooks always work in sessions. `install.sh` installs jq automatically via `winget`; if that fails, install it manually before running `make test`:
   ```
   winget install jqlang.jq
@@ -99,10 +103,14 @@ cp settings.local.example.json ~/.claude/settings.local.json
 Run the test suite from the dotfiles root:
 
 ```bash
-bash tests/test_hooks.sh   # or: make test
+bash tests/test_hooks.sh   # hooks
+bash tests/test_audit.sh   # text-audit CLI
+make test                  # both
 ```
 
-Tests pipe crafted JSON payloads into each hook and assert exit codes and JSON output. Hooks that rely on `jq` internally are skipped if jq isn't in PATH (all tests still pass — they're reported as SKIP). Install jq to unlock full coverage.
+`test_hooks.sh` pipes crafted JSON payloads into each hook and asserts exit codes and JSON output. Hooks that rely on `jq` internally are skipped if jq isn't in PATH (all tests still pass — they're reported as SKIP). Install jq to unlock full coverage.
+
+`test_audit.sh` covers the five vendored CLIs: the `iso-24495-text-audit` one and the four `iso-24495-4` gap-analysis ones. It asserts which rule each fixture trips, every argument-error exit code, and that the full four-step gap-analysis chain produces a report. It also checks that **every file a `SKILL.md` names actually exists** — the bug that made the suite necessary. It skips entirely if Node is missing or too old to strip types, so `make test` stays green without it.
 
 ---
 
@@ -214,10 +222,10 @@ If BurntToast is not installed, `notify.sh` silently falls through — no error.
 | `iso-24495-1` | Automatic on user-facing prose — core plain-language rules |
 | `iso-24495-2` | Automatic on legal/compliance text |
 | `iso-24495-3` | Automatic on technical/science writing and docs |
-| `iso-24495-4` | Automatic on org-level plain-language work (gap analysis, policy) |
+| `iso-24495-4` | Automatic on org-level plain-language work (gap analysis, policy). Its four CLIs need Node 22.18+ |
 | `iso-24495-5` | Automatic on complex multi-section documents |
 | `iso-24495-code` | Automatic on code readability (naming, structure) |
-| `iso-24495-text-audit` | Manual only — "audit this file/directory for plain language" |
+| `iso-24495-text-audit` | Manual only — "audit this file/directory for plain language". Needs Node 22.18+ |
 
 ## Plain language (ISO 24495)
 
@@ -228,7 +236,36 @@ The two pieces work at different levels:
 - **The output style** governs every response. `settings.json` sets it as the default (`"outputStyle": "ISO 24495"`); switch per session with `/output-style`, or back to normal with `/output-style default`.
 - **The skills** add domain depth (legal, technical, document design) and activate when the task matches. `iso-24495-text-audit` never auto-activates — invoke it to audit existing files.
 
-Only `SKILL.md` files are vendored; upstream's Codex CLI config and TypeScript tooling are left out. To update, re-copy the `SKILL.md` files and `output-styles/iso-24495.md` from upstream.
+### What is vendored
+
+The `SKILL.md` files, `output-styles/iso-24495.md`, and every script the two runnable skills need:
+
+```
+skills/iso-24495-text-audit/scripts/  audit-text-cli.ts, audit-text.ts
+skills/iso-24495-4/scripts/           audit-corpus{,-cli}.ts, audit-evidence{,-cli}.ts,
+                                      generate-report{,-cli}.ts, score-maturity{,-cli}.ts,
+                                      lib/{parse,lexicon,types}.ts
+skills/iso-24495-4/references/        evidence-map.md, interview-guide.md, maturity-model.md
+skills/iso-24495-4/assets/            gap-report-template.md
+```
+
+`audit-text.ts` is a thin wrapper; its rule engine lives in the `iso-24495-4` scripts, so both directories are needed and must stay siblings under `skills/`.
+
+**These run on Node, not Bun.** Upstream targets Bun, but every file uses erasable TypeScript syntax and imports only `node:fs` and `node:path`. Node strips the types and runs them unbuilt — no build step, no `node_modules`, no new runtime. Node 22.18 or newer is required, because type stripping is unflagged from that version.
+
+Eleven lines differ from upstream, every one of them reading `node` where upstream reads `bun`:
+
+| File | Lines | What changed |
+|------|-------|--------------|
+| `iso-24495-text-audit/SKILL.md` | 2 | step 6: its prose and its command |
+| `iso-24495-4/SKILL.md` | 4 | the four workflow commands |
+| `audit-text.ts`, `audit-corpus.ts`, `audit-evidence.ts`, `generate-report.ts`, `score-maturity.ts` | 5 | one usage string each |
+
+The other 12 vendored files are byte-identical to upstream 0.6.2. To check, diff this tree against a fresh clone: every differing line should contain `bun` or `node`.
+
+Still left out: upstream's Codex CLI config (`agents/openai.yaml`) and its `bun:test` suites. `tests/test_audit.sh` covers the CLI contracts instead.
+
+To update: re-copy the `SKILL.md` files, `output-styles/iso-24495.md`, and the directories above, then re-apply the eleven `bun` → `node` changes and run `bash tests/test_audit.sh`. That suite fails if a `SKILL.md` names a file the copy missed, which is the bug that made this section necessary.
 
 ## Commands
 
