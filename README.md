@@ -29,8 +29,10 @@ claude-dotfiles/
 │   │   └── SKILL.md                    # Skill: restate last message bluntly, no jargon or hedging
 │   ├── git-pr-message/
 │   │   └── SKILL.md                    # Skill: generate PR descriptions from git log
-│   └── iso-24495-*/                    # Seven plain-language skills (see Plain language section)
-│       └── SKILL.md
+│   ├── iso-24495-*/                    # Seven plain-language skills (see Plain language section)
+│   │   └── SKILL.md
+│   ├── iso-24495-4/scripts/            # Audit engine, vendored: audit-corpus.ts + lib/
+│   └── iso-24495-text-audit/scripts/   # Audit CLI, vendored: audit-text{,-cli}.ts
 ├── output-styles/
 │   └── iso-24495.md                    # Output style: plain-language rules on every response
 ├── commands/
@@ -99,10 +101,14 @@ cp settings.local.example.json ~/.claude/settings.local.json
 Run the test suite from the dotfiles root:
 
 ```bash
-bash tests/test_hooks.sh   # or: make test
+bash tests/test_hooks.sh   # hooks
+bash tests/test_audit.sh   # text-audit CLI
+make test                  # both
 ```
 
-Tests pipe crafted JSON payloads into each hook and assert exit codes and JSON output. Hooks that rely on `jq` internally are skipped if jq isn't in PATH (all tests still pass — they're reported as SKIP). Install jq to unlock full coverage.
+`test_hooks.sh` pipes crafted JSON payloads into each hook and asserts exit codes and JSON output. Hooks that rely on `jq` internally are skipped if jq isn't in PATH (all tests still pass — they're reported as SKIP). Install jq to unlock full coverage.
+
+`test_audit.sh` runs the `iso-24495-text-audit` CLI against fixtures and asserts which rule each one trips, plus every argument-error exit code. It skips entirely if Node is missing or too old to strip types, so `make test` stays green without it.
 
 ---
 
@@ -217,7 +223,7 @@ If BurntToast is not installed, `notify.sh` silently falls through — no error.
 | `iso-24495-4` | Automatic on org-level plain-language work (gap analysis, policy) |
 | `iso-24495-5` | Automatic on complex multi-section documents |
 | `iso-24495-code` | Automatic on code readability (naming, structure) |
-| `iso-24495-text-audit` | Manual only — "audit this file/directory for plain language" |
+| `iso-24495-text-audit` | Manual only — "audit this file/directory for plain language". Needs Node 22.18+ |
 
 ## Plain language (ISO 24495)
 
@@ -228,7 +234,24 @@ The two pieces work at different levels:
 - **The output style** governs every response. `settings.json` sets it as the default (`"outputStyle": "ISO 24495"`); switch per session with `/output-style`, or back to normal with `/output-style default`.
 - **The skills** add domain depth (legal, technical, document design) and activate when the task matches. `iso-24495-text-audit` never auto-activates — invoke it to audit existing files.
 
-Only `SKILL.md` files are vendored; upstream's Codex CLI config and TypeScript tooling are left out. To update, re-copy the `SKILL.md` files and `output-styles/iso-24495.md` from upstream.
+### What is vendored
+
+The `SKILL.md` files, `output-styles/iso-24495.md`, and the TypeScript that `iso-24495-text-audit` runs:
+
+```
+skills/iso-24495-text-audit/scripts/  audit-text-cli.ts, audit-text.ts
+skills/iso-24495-4/scripts/           audit-corpus.ts, lib/{parse,lexicon,types}.ts
+```
+
+`audit-text.ts` is a thin wrapper; the rule engine lives in the `iso-24495-4` scripts, so both directories are needed and must stay siblings under `skills/`.
+
+**These run on Node, not Bun.** Upstream targets Bun, but every file in the chain uses erasable TypeScript syntax and imports only `node:fs` and `node:path`. Node strips the types and runs them unbuilt — no build step, no `node_modules`, no new runtime. Node 22.18 or newer is required, because type stripping is unflagged from that version.
+
+Two lines differ from upstream, both saying `node` where upstream says `bun`: step 6 of `iso-24495-text-audit/SKILL.md`, and the usage string in `audit-text.ts`. Everything else is byte-identical to upstream 0.6.2.
+
+Still left out: upstream's Codex CLI config, its `bun:test` suites, and the four `iso-24495-4` report CLIs (`audit-evidence`, `audit-corpus-cli`, `score-maturity`, `generate-report`) that `iso-24495-4/SKILL.md` references. That skill's audit workflow therefore cannot run — only the text audit can.
+
+To update: re-copy the `SKILL.md` files, `output-styles/iso-24495.md`, and the six scripts above, then re-apply the two `bun` → `node` changes and run `bash tests/test_audit.sh`.
 
 ## Commands
 
