@@ -1108,7 +1108,7 @@ export function runCli(
 ): number {
   const dir = argv[2];
   if (!dir) {
-    stderr("Usage: bun audit-corpus-cli.ts <corpus-dir> [--json <out-file>]");
+    stderr("Usage: node audit-corpus-cli.ts <corpus-dir> [--json <out-file>]");
     return 2;
   }
   let jsonPath: string | undefined;
