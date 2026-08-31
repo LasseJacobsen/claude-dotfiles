@@ -143,6 +143,14 @@ for skill_dir in "$REPO/skills/"*/; do
   fi
 done
 
+# Output styles — symlink-or-copy. settings.json selects the default style by
+# its frontmatter name; /output-style switches per session.
+mkdir -p "$TARGET/output-styles"
+for style_file in "$REPO/output-styles/"*; do
+  [[ -f "$style_file" ]] || continue
+  link_or_copy "$style_file" "$TARGET/output-styles/$(basename "$style_file")" "output style: $(basename "$style_file")"
+done
+
 # Seed settings.local.json from example on first run
 if [[ ! -f "$TARGET/settings.local.json" && -f "$REPO/settings.local.example.json" ]]; then
   cp "$REPO/settings.local.example.json" "$TARGET/settings.local.json"

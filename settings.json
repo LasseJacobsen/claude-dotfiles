@@ -1,5 +1,6 @@
 {
   "includeCoAuthoredBy": false,
+  "outputStyle": "ISO 24495",
   "attribution": {"commit": "", "pr": ""},
   "env": {
     "MPLBACKEND": "Agg",

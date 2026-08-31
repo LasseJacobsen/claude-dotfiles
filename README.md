@@ -27,8 +27,12 @@ claude-dotfiles/
 │   │   └── SKILL.md                    # Skill: restate last message in plain human language
 │   ├── bruh/
 │   │   └── SKILL.md                    # Skill: restate last message bluntly, no jargon or hedging
-│   └── git-pr-message/
-│       └── SKILL.md                    # Skill: generate PR descriptions from git log
+│   ├── git-pr-message/
+│   │   └── SKILL.md                    # Skill: generate PR descriptions from git log
+│   └── iso-24495-*/                    # Seven plain-language skills (see Plain language section)
+│       └── SKILL.md
+├── output-styles/
+│   └── iso-24495.md                    # Output style: plain-language rules on every response
 ├── commands/
 │   ├── commit.md                       # /user:commit — guided commit helper
 │   └── pr.md                           # /user:pr — generate and open a pull request
@@ -52,8 +56,9 @@ The clone location doesn't matter — `install.sh` resolves paths relative to it
 3. Copies hooks into `~/.claude/hooks/`
 4. Copies commands into `~/.claude/commands/`
 5. Copies skills into `~/.claude/skills/`
-6. Seeds `~/.claude/settings.local.json` from `settings.local.example.json` on first run
-7. Installs `nbstripout` and registers it as a global git filter (strips notebook outputs on every `git add`, regardless of who staged the file)
+6. Copies output styles into `~/.claude/output-styles/`
+7. Seeds `~/.claude/settings.local.json` from `settings.local.example.json` on first run
+8. Installs `nbstripout` and registers it as a global git filter (strips notebook outputs on every `git add`, regardless of who staged the file)
 
 Then **start a new Claude Code session** — hooks are loaded at startup.
 
@@ -204,6 +209,26 @@ If BurntToast is not installed, `notify.sh` silently falls through — no error.
 | Skill | Trigger |
 |-------|---------|
 | `git-pr-message` | "generate a PR description", "write the PR body" |
+| `bro` | "/bro" — restate the last message in plain human language |
+| `bruh` | "/bruh" — restate the last message bluntly, no jargon or hedging |
+| `iso-24495-1` | Automatic on user-facing prose — core plain-language rules |
+| `iso-24495-2` | Automatic on legal/compliance text |
+| `iso-24495-3` | Automatic on technical/science writing and docs |
+| `iso-24495-4` | Automatic on org-level plain-language work (gap analysis, policy) |
+| `iso-24495-5` | Automatic on complex multi-section documents |
+| `iso-24495-code` | Automatic on code readability (naming, structure) |
+| `iso-24495-text-audit` | Manual only — "audit this file/directory for plain language" |
+
+## Plain language (ISO 24495)
+
+The `iso-24495-*` skills and the `output-styles/iso-24495.md` output style are vendored from [GaZmagik/iso-24495](https://github.com/GaZmagik/iso-24495) (MIT). They apply plain-language rules from the ISO 24495 standard series: lead with the outcome, no preamble filler, sentences under 30 words, active voice, one term per concept.
+
+The two pieces work at different levels:
+
+- **The output style** governs every response. `settings.json` sets it as the default (`"outputStyle": "ISO 24495"`); switch per session with `/output-style`, or back to normal with `/output-style default`.
+- **The skills** add domain depth (legal, technical, document design) and activate when the task matches. `iso-24495-text-audit` never auto-activates — invoke it to audit existing files.
+
+Only `SKILL.md` files are vendored; upstream's Codex CLI config and TypeScript tooling are left out. To update, re-copy the `SKILL.md` files and `output-styles/iso-24495.md` from upstream.
 
 ## Commands
 

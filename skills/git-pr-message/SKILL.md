@@ -15,13 +15,17 @@ pull request message, or PR body.
    git log <base>...HEAD --oneline
    git diff <base>...HEAD --stat
    ```
-3. Produce a markdown PR description with the sections below.
+3. Produce a PR title and a markdown PR description with the sections below.
    Keep it factual — derive everything from the diff and log.
    Do **not** add AI footers or "Generated with" lines.
 
 ## Output format
 
+Always start with a title line (≤70 chars, imperative), then the body:
+
 ```markdown
+# <PR title>
+
 ## Summary
 <2–4 bullet points covering what changed and why>
 
@@ -35,5 +39,6 @@ pull request message, or PR body.
 ## Rules
 
 - Use plain imperative language ("Add", "Fix", "Remove" — not "This PR adds…").
+- The title is mandatory — never emit a body without one.
 - Omit sections that are genuinely not applicable rather than leaving them blank.
 - If the diff is large, summarise by module rather than listing every file.
