@@ -52,7 +52,9 @@ claude-dotfiles/
 │   ├── commit.md                       # /user:commit — guided commit helper
 │   └── pr.md                           # /user:pr — generate and open a pull request
 └── tests/
-    └── test_hooks.sh                   # Unit tests for all hooks
+    ├── test_hooks.sh                   # Unit tests for all hooks
+    ├── test_audit.sh                   # Vendored CLI contracts + SKILL.md file references
+    └── test_install.sh                 # install.sh prune, idempotence, backup
 ```
 
 ## Setup (new machine)
@@ -72,8 +74,9 @@ The clone location doesn't matter — `install.sh` resolves paths relative to it
 4. Copies commands into `~/.claude/commands/`
 5. Copies skills into `~/.claude/skills/`
 6. Copies output styles into `~/.claude/output-styles/`
-7. Seeds `~/.claude/settings.local.json` from `settings.local.example.json` on first run
-8. Installs `nbstripout` and registers it as a global git filter (strips notebook outputs on every `git add`, regardless of who staged the file)
+7. **Prunes** anything in `~/.claude/{hooks,commands,skills,output-styles}` that this repo does not ship, one log line per removal. Those four directories mirror the repo exactly after every run, so a hook or skill you place there by hand will be removed; keep such things in this repo instead. Everything else under `~/.claude` (`projects/`, `plans/`, `backups/`, `plugins/`, `settings.local.json`, credentials, history) is Claude Code's own state and is never touched.
+8. Seeds `~/.claude/settings.local.json` from `settings.local.example.json` on first run
+9. Installs `nbstripout` and registers it as a global git filter (strips notebook outputs on every `git add`, regardless of who staged the file)
 
 Then **start a new Claude Code session** — hooks are loaded at startup.
 
@@ -115,12 +118,15 @@ cp settings.local.example.json ~/.claude/settings.local.json
 Run the test suite from the dotfiles root:
 
 ```bash
-bash tests/test_hooks.sh   # hooks
-bash tests/test_audit.sh   # text-audit CLI
-make test                  # both
+bash tests/test_hooks.sh    # hooks
+bash tests/test_audit.sh    # text-audit CLI
+bash tests/test_install.sh  # install.sh prune + backup
+make test                   # all three
 ```
 
 `test_hooks.sh` pipes crafted JSON payloads into each hook and asserts exit codes and JSON output. Hooks that rely on `jq` internally are skipped if jq isn't in PATH (all tests still pass — they're reported as SKIP). Install jq to unlock full coverage.
+
+`test_install.sh` runs `install.sh` against a temp directory and asserts that stale entries in the four managed dirs are pruned, every repo entry lands, unmanaged state survives, a re-run prunes nothing, and an unmanaged target is backed up first. It uses two env overrides on `install.sh`: `CLAUDE_DOTFILES_TARGET` (install somewhere other than `~/.claude`) and `CLAUDE_DOTFILES_SKIP_TOOLS=1` (skip the jq/uv/nbstripout install and the global git config edits). The symlink-safety case is skipped where symlinks are unavailable.
 
 `test_audit.sh` covers the five vendored CLIs: the `iso-24495-text-audit` one and the four `iso-24495-4` gap-analysis ones. It asserts which rule each fixture trips, every argument-error exit code, and that the full four-step gap-analysis chain produces a report. It also checks that **every file a `SKILL.md` names actually exists** — the bug that made the suite necessary. It skips entirely if Node is missing or too old to strip types, so `make test` stays green without it.
 

@@ -6,5 +6,6 @@ install:
 test:
 	bash tests/test_hooks.sh
 	bash tests/test_audit.sh
+	bash tests/test_install.sh
 
 check: test
