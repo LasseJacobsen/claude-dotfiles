@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Smoke tests for the vendored ISO 24495 audit tooling: the iso-24495-text-audit
-# CLI and the four iso-24495-4 gap-analysis CLIs. Run from the dotfiles root:
+# Smoke tests for the vendored tooling: the iso-24495-text-audit CLI, the four
+# iso-24495-4 gap-analysis CLIs, and the book-to-skill extractor. Run from the
+# dotfiles root:
 #   bash tests/test_audit.sh
-# Requirements: bash, node >= 22.18 (type stripping, so the .ts files run unbuilt)
+# Requirements: bash, node >= 22.18 (type stripping, so the .ts files run unbuilt),
+# python >= 3.9 (book-to-skill). A missing runtime SKIPs its part; the rest runs.
 #
 # These cover the CLI contract — exit codes and which rule each fixture trips —
 # not the audit engines themselves. Those are vendored verbatim from upstream and
@@ -46,6 +48,19 @@ if command -v node >/dev/null 2>&1; then
     NODE_WHY="node $(node --version) cannot strip types — need >= 22.18"
   fi
 fi
+
+# book-to-skill's extractor is stdlib Python >= 3.9. `python` is tried before
+# `python3` because on Windows `python3` may be the Store stub, which exits
+# non-zero without running anything; the version probe filters that out.
+HAS_PYTHON=false
+PYTHON_WHY="python >= 3.9 not in PATH"
+PY=""
+for candidate in python python3; do
+  if command -v "$candidate" >/dev/null 2>&1 \
+     && "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 9))' >/dev/null 2>&1; then
+    PY="$candidate"; HAS_PYTHON=true; break
+  fi
+done
 
 # ── CLI helpers ───────────────────────────────────────────────────────────────
 
@@ -135,7 +150,7 @@ assert_skill_refs() {
       fail "$skill_name names $ref, which does not exist"
       missing=1
     fi
-  done < <(grep -oE '(scripts|references|assets)/[A-Za-z0-9._-]+\.(ts|md)' "$skill_dir/SKILL.md" || true)
+  done < <(grep -oE '(scripts|references|assets|tools)/[A-Za-z0-9._-]+\.(ts|md|py)' "$skill_dir/SKILL.md" || true)
   if [[ "$found" -eq 0 ]]; then
     fail "$skill_name — extracted no file references, so this test proved nothing"
   elif [[ "$missing" -eq 0 ]]; then
@@ -299,6 +314,47 @@ fi
 
 fi
 
+# ── book-to-skill ─────────────────────────────────────────────────────────────
+# The vendored Python extractor (README → "Book to skill"). Independent of node.
+BTS="$ROOT/skills/book-to-skill"
+
+section "book-to-skill SKILL.md references"
+assert_skill_refs "$BTS" "book-to-skill/SKILL.md"
+
+section "book-to-skill extractor"
+if ! $HAS_PYTHON; then
+  skip "$PYTHON_WHY — the extractor needs it"
+else
+  if "$PY" "$BTS/scripts/extract.py" --check >/dev/null 2>&1; then
+    ok "extract.py --check exits 0"
+  else
+    fail "extract.py --check did not exit 0"
+  fi
+
+  # --install-missing no keeps the run offline; BOOK_SKILL_WORKDIR pins the
+  # output so the test need not parse the "Workdir ->" line from stdout.
+  BTS_WORK="$TMPDIR_BASE/bts-work"
+  if BOOK_SKILL_WORKDIR="$BTS_WORK" "$PY" "$BTS/scripts/extract.py" "$FIX/clean.md" \
+       --mode text --install-missing no >/dev/null 2>&1 \
+     && [[ -s "$BTS_WORK/full_text.txt" && -s "$BTS_WORK/metadata.json" ]] \
+     && grep -qF '"sources"' "$BTS_WORK/metadata.json"; then
+    ok "extract.py writes full_text.txt and metadata.json for a markdown fixture"
+  else
+    fail "extract.py did not produce full_text.txt + metadata.json in $BTS_WORK"
+  fi
+
+  # Step 9.5 runs this scanner on every generated skill; a benign one must pass.
+  GEN="$TMPDIR_BASE/gen-skill"
+  mkdir -p "$GEN/chapters"
+  printf -- '---\nname: test-book\ndescription: A test skill.\n---\n\n# Test Book\n\nOne framework, plainly stated.\n' > "$GEN/SKILL.md"
+  printf '# Chapter 1\n\nA short summary.\n' > "$GEN/chapters/ch01-intro.md"
+  if "$PY" "$BTS/tools/scan_generated_skill.py" "$GEN" >/dev/null 2>&1; then
+    ok "scan_generated_skill.py passes a benign generated skill"
+  else
+    fail "scan_generated_skill.py flagged or crashed on a benign generated skill"
+  fi
+fi
+
 # ── summary ──────────────────────────────────────────────────────────────────
 printf "\n%s\n" "$(printf '─%.0s' {1..50})"
 printf "Results: ${G}%d passed${N}, ${R}%d failed${N}, ${Y}%d skipped${N}\n" \
@@ -307,6 +363,9 @@ printf "Results: ${G}%d passed${N}, ${R}%d failed${N}, ${Y}%d skipped${N}\n" \
 if ! $HAS_NODE; then
   printf "\n${Y}Note:${N} install Node 22.18 or newer to run the text-audit tests.\n"
   printf "  https://nodejs.org/  |  winget install OpenJS.NodeJS\n"
+fi
+if ! $HAS_PYTHON; then
+  printf "\n${Y}Note:${N} install Python 3.9 or newer to run the book-to-skill tests.\n"
 fi
 
 [[ "$FAIL" -eq 0 ]]

@@ -43,9 +43,10 @@ claude-dotfiles/
 │   │   └── SKILL.md                    # Skill: PySpark style rules (Palantir guide), applied at write time
 │   ├── pyspark-audit/
 │   │   └── SKILL.md                    # Skill: audit .py files against pyspark-style (manual only)
-│   └── writing-for-agents/             # Vendored: how to write SKILL.md / CLAUDE.md files
-│       ├── SKILL.md
-│       └── references/                 #   SKILL-MECHANICS.md
+│   ├── writing-for-agents/             # Vendored: how to write SKILL.md / CLAUDE.md files
+│   │   ├── SKILL.md
+│   │   └── references/                 #   SKILL-MECHANICS.md
+│   └── book-to-skill/                  # Vendored: document → skill converter (SKILL.md + Python extractor)
 ├── output-styles/
 │   └── iso-24495.md                    # Output style: plain-language rules on every response
 ├── commands/
@@ -248,6 +249,7 @@ If BurntToast is not installed, `notify.sh` silently falls through — no error.
 | `iso-24495-text-audit` | Manual only — "audit this file/directory for plain language". Needs Node 22.18+ |
 | `pyspark-style` | Automatic on writing/restructuring PySpark code — column refs, joins, windows, chaining |
 | `pyspark-audit` | Manual only — "/pyspark-audit <file-or-dir>", checks existing files against `pyspark-style` |
+| `book-to-skill` | "/book-to-skill <path> [slug]" or "turn this book into a skill" — converts a document into a study/reference skill. Needs Python 3.9+ (see Book to skill section) |
 
 ## Plain language (ISO 24495)
 
@@ -350,6 +352,60 @@ To update: re-copy the seven files from
 `skills/productivity/{grilling,writing-for-agents}` and `skills/engineering/{grill-with-docs,domain-modeling}`,
 move the sibling files into `references/` and re-apply the path rewrites, re-add the metadata
 blocks and the one `grill-with-docs` sentence, then run `bash tests/test_audit.sh`.
+
+## Book to skill (virgiliojr94/book-to-skill)
+
+The `book-to-skill` skill is vendored from [virgiliojr94/book-to-skill](https://github.com/virgiliojr94/book-to-skill)
+(MIT, Copyright (c) 2025 virgiliojr94) at commit `01f8a742ae` (2026-09-12; version 1.4.0 plus
+later fixes on `master`). It converts a document — PDF, EPUB, DOCX, HTML, Markdown, text, RTF,
+or MOBI/AZW via Calibre — into a skill under `~/.claude/skills/<slug>/`: a small `SKILL.md`
+holding the book's frameworks and a chapter index, plus on-demand `chapters/*.md`,
+`glossary.md`, `patterns.md`, and `cheatsheet.md`.
+
+Invoke it with `/book-to-skill <file|dir|glob>... [slug]`. It asks two questions (content type,
+depth), extracts text with a deterministic Python script, then writes the skill files. Generated
+skills are synthesized summaries; keep skills of copyrighted books private.
+
+### What is vendored
+
+Upstream is 2.6 MB, mostly docs, images, tests, and CI. The skill itself is 21 files (~195 KB),
+each one something `SKILL.md` needs at run time:
+
+```
+skills/book-to-skill/SKILL.md                       the generator spec (Steps 0–10)
+skills/book-to-skill/LICENSE.md                     upstream MIT licence
+skills/book-to-skill/scripts/extract.py             entry shim; adds the skill dir to sys.path
+skills/book-to-skill/book_to_skill/                 extractor package: cli, config, dependencies,
+                                                    sanitize, utils, parsers/{pdf,epub,docx,html,rtf,calibre,text}
+skills/book-to-skill/tools/scan_generated_skill.py  Step 9.5 prompt-injection scan of the output
+```
+
+Left out: `docs/`, `tests/`, `evals/`, `.github/`, the README translations, and
+`tools/{validate_skill,discovery_tax}.py` plus `tools/evals/`, which `SKILL.md` never calls.
+
+**Python only; no packages required.** The extractor is stdlib for every format. PDFs use
+`pdftotext` when it is on PATH (Git for Windows ships it), else `pypdf` or `pdfminer.six` if
+installed; EPUB, DOCX, HTML, and RTF each have a stdlib fallback. Optional packages raise
+fidelity: `pypdf`, `ebooklib` + `beautifulsoup4`, `python-docx`, `striprtf`. Install them into
+the interpreter that runs the extractor (for example `uv pip install --python "$(command -v python)" pypdf`).
+`docling` (technical PDFs: tables, code, formulas) pulls in a large ML stack; install it only on
+purpose. MOBI/AZW need Calibre's `ebook-convert`; there is no fallback. To see what is available:
+
+```bash
+python skills/book-to-skill/scripts/extract.py --check
+```
+
+Seven lines differ from upstream:
+
+| File | Lines | What changed |
+|------|-------|--------------|
+| `SKILL.md` frontmatter | 4 | added `metadata:` (source, licence, pinned commit), matching `pyspark-style` |
+| `SKILL.md` Step 5 | 3 | generated skills default to `~/.claude/skills` instead of `~/.agents/skills` plus a symlink, which needs Developer Mode on Windows; the offer to migrate an existing real directory is dropped |
+
+The other 20 files are byte-identical to upstream at that commit. `tests/test_audit.sh` checks
+that `SKILL.md` names only files that exist and that the extractor and scanner run.
+
+To update: re-copy the files above at the new commit, re-apply the seven lines, and run `make test`.
 
 ## Commands
 
