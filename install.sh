@@ -4,10 +4,15 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
-TARGET="$HOME/.claude"
+# Both overrides exist for tests/test_install.sh, which installs into a temp
+# dir and must not touch this machine's tools or global git config.
+TARGET="${CLAUDE_DOTFILES_TARGET:-$HOME/.claude}"
+SKIP_TOOLS="${CLAUDE_DOTFILES_SKIP_TOOLS:-0}"
 
 log() { printf '[claude-dotfiles] %s\n' "$*"; }
 
+UV_OK=false
+if [[ "$SKIP_TOOLS" != 1 ]]; then
 # jq is required by several hooks for JSON parsing. Install jq first so a
 # user missing both jq and uv gets jq automatically before we abort on uv.
 # Claude Code bundles jq so hooks work in sessions; install here for 'make test' in the shell.
@@ -55,7 +60,6 @@ fi
 # though uv is installed and owned by the user. When that happens we degrade:
 # install the uv-independent core and skip the uv-dependent extras with one
 # clear message instead of confusing failures.
-UV_OK=false
 if command -v uv >/dev/null 2>&1; then
   if uv --version >/dev/null 2>&1; then
     UV_OK=true
@@ -70,6 +74,7 @@ else
   log "Warning: uv not found — the nbstripout git filter will be skipped."
   log "  Install uv (https://github.com/astral-sh/uv) and re-run install.sh."
 fi
+fi  # SKIP_TOOLS
 
 # Back up any pre-existing ~/.claude that wasn't created by this script.
 # Abort on backup failure rather than clobber the user's settings: the
@@ -101,11 +106,30 @@ link_or_copy() {
   fi
 }
 
+# Remove entries the repo no longer ships, so ~/.claude/{hooks,commands,skills,
+# output-styles} mirror the repo exactly. Only those four dirs are pruned; the
+# rest of ~/.claude (projects/, plans/, backups/, settings.local.json, ...) is
+# Claude Code's own state. The glob has no trailing slash on purpose: `rm -rf`
+# on a symlinked entry then removes the link, and never follows it into the repo.
+prune_dir() {
+  local src_dir="$1" dst_dir="$2" label="$3" entry name
+  [[ -d "$dst_dir" ]] || return 0
+  for entry in "$dst_dir"/* "$dst_dir"/.[!.]*; do
+    [[ -e "$entry" || -L "$entry" ]] || continue   # unmatched glob stays literal; skip it
+    name=$(basename "$entry")
+    if [[ ! -e "$src_dir/$name" ]]; then
+      rm -rf "$entry"
+      log "Pruned $label: $name (not in repo)"
+    fi
+  done
+}
+
 link_or_copy "$REPO/settings.json" "$TARGET/settings.json" "settings.json"
 link_or_copy "$REPO/CLAUDE.md"     "$TARGET/CLAUDE.md"     "CLAUDE.md"
 
 # Hooks — symlink-or-copy each, so editing the repo updates ~/.claude live
 # wherever symlinks are available.
+prune_dir "$REPO/hooks" "$TARGET/hooks" "hook"
 for hook in "$REPO/hooks/"*; do
   [[ -f "$hook" ]] || continue
   link_or_copy "$hook" "$TARGET/hooks/$(basename "$hook")" "hook: $(basename "$hook")"
@@ -123,6 +147,7 @@ done
 
 # Commands — symlink-or-copy
 mkdir -p "$TARGET/commands"
+prune_dir "$REPO/commands" "$TARGET/commands" "command"
 for cmd_file in "$REPO/commands/"*; do
   [[ -f "$cmd_file" ]] || continue
   link_or_copy "$cmd_file" "$TARGET/commands/$(basename "$cmd_file")" "command: $(basename "$cmd_file")"
@@ -131,6 +156,7 @@ done
 # Skills — replace any existing target before copying so re-runs don't nest
 # (cp -r src dst/ when dst/src already exists copies into dst/src/src).
 mkdir -p "$TARGET/skills"
+prune_dir "$REPO/skills" "$TARGET/skills" "skill"
 for skill_dir in "$REPO/skills/"*/; do
   [[ -d "$skill_dir" ]] || continue
   skill_name=$(basename "${skill_dir%/}")
@@ -146,6 +172,7 @@ done
 # Output styles — symlink-or-copy. settings.json selects the default style by
 # its frontmatter name; /output-style switches per session.
 mkdir -p "$TARGET/output-styles"
+prune_dir "$REPO/output-styles" "$TARGET/output-styles" "output style"
 for style_file in "$REPO/output-styles/"*; do
   [[ -f "$style_file" ]] || continue
   link_or_copy "$style_file" "$TARGET/output-styles/$(basename "$style_file")" "output style: $(basename "$style_file")"
@@ -157,7 +184,9 @@ if [[ ! -f "$TARGET/settings.local.json" && -f "$REPO/settings.local.example.jso
   log "Created settings.local.json from example template"
 fi
 
-if $UV_OK; then
+if [[ "$SKIP_TOOLS" == 1 ]]; then
+  : # tests: no nbstripout install, no global git config edits
+elif $UV_OK; then
   # nbstripout global git filter — covers humans staging notebooks too, not just Claude.
   # nbstripout --install writes a `clean = nbstripout` filter that relies on the
   # bare command being on PATH. Non-login shells (e.g. GUI git clients, some CI
@@ -180,10 +209,12 @@ else
 fi
 
 # Prevent settings.local.json from showing up as an untracked file in project repos
-mkdir -p "$HOME/.config/git"
-if ! grep -qxF '**/.claude/settings.local.json' "$HOME/.config/git/ignore" 2>/dev/null; then
-  echo '**/.claude/settings.local.json' >> "$HOME/.config/git/ignore"
-  log "Added settings.local.json to global git ignore ($HOME/.config/git/ignore)"
+if [[ "$SKIP_TOOLS" != 1 ]]; then
+  mkdir -p "$HOME/.config/git"
+  if ! grep -qxF '**/.claude/settings.local.json' "$HOME/.config/git/ignore" 2>/dev/null; then
+    echo '**/.claude/settings.local.json' >> "$HOME/.config/git/ignore"
+    log "Added settings.local.json to global git ignore ($HOME/.config/git/ignore)"
+  fi
 fi
 
 touch "$TARGET/.managed-by-dotfiles"
