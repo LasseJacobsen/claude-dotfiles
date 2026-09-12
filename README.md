@@ -25,19 +25,27 @@ claude-dotfiles/
 ├── skills/
 │   ├── bro/
 │   │   └── SKILL.md                    # Skill: restate last message in plain human language
-│   ├── bruh/
-│   │   └── SKILL.md                    # Skill: restate last message bluntly, no jargon or hedging
+│   ├── domain-modeling/                # Vendored: CONTEXT.md glossary + ADR discipline (see Grilling section)
+│   │   ├── SKILL.md
+│   │   └── references/                 #   CONTEXT-FORMAT.md, ADR-FORMAT.md
 │   ├── git-pr-message/
 │   │   └── SKILL.md                    # Skill: generate PR descriptions from git log
-│   ├── iso-24495-*/                    # Seven plain-language skills (see Plain language section)
+│   ├── grill-with-docs/
+│   │   └── SKILL.md                    # Vendored: /grill-with-docs, grilling + domain-modeling (manual only)
+│   ├── grilling/
+│   │   └── SKILL.md                    # Vendored: round-based interview until shared understanding
+│   ├── iso-24495-*/                    # Six plain-language skills (see Plain language section)
 │   │   └── SKILL.md
 │   ├── iso-24495-4/                    # Vendored: 4 gap-analysis CLIs + rule engine,
 │   │                                   #   plus references/ and assets/
 │   ├── iso-24495-text-audit/scripts/   # Vendored: text-audit CLI (uses the engine above)
 │   ├── pyspark-style/
 │   │   └── SKILL.md                    # Skill: PySpark style rules (Palantir guide), applied at write time
-│   └── pyspark-audit/
-│       └── SKILL.md                    # Skill: audit .py files against pyspark-style (manual only)
+│   ├── pyspark-audit/
+│   │   └── SKILL.md                    # Skill: audit .py files against pyspark-style (manual only)
+│   └── writing-for-agents/             # Vendored: how to write SKILL.md / CLAUDE.md files
+│       ├── SKILL.md
+│       └── references/                 #   SKILL-MECHANICS.md
 ├── output-styles/
 │   └── iso-24495.md                    # Output style: plain-language rules on every response
 ├── commands/
@@ -222,12 +230,14 @@ If BurntToast is not installed, `notify.sh` silently falls through — no error.
 |-------|---------|
 | `git-pr-message` | "generate a PR description", "write the PR body" |
 | `bro` | "/bro" — restate the last message in plain human language |
-| `bruh` | "/bruh" — restate the last message bluntly, no jargon or hedging |
+| `grilling` | Automatic on "grill me", "stress-test this plan", or "/grilling" — round-based interview until shared understanding |
+| `grill-with-docs` | Manual only — "/grill-with-docs", the same interview plus `CONTEXT.md` and ADRs written as terms and decisions settle |
+| `domain-modeling` | Automatic when editing `CONTEXT.md`, recording an ADR, or settling codebase terminology |
+| `writing-for-agents` | Automatic when creating or editing a `SKILL.md`, `CLAUDE.md`, or `AGENTS.md` |
 | `iso-24495-1` | Automatic on user-facing prose — core plain-language rules |
 | `iso-24495-2` | Automatic on legal/compliance text |
 | `iso-24495-3` | Automatic on technical/science writing and docs |
 | `iso-24495-4` | Automatic on org-level plain-language work (gap analysis, policy). Its four CLIs need Node 22.18+ |
-| `iso-24495-5` | Automatic on complex multi-section documents |
 | `iso-24495-code` | Automatic on code readability (naming, structure) |
 | `iso-24495-text-audit` | Manual only — "audit this file/directory for plain language". Needs Node 22.18+ |
 | `pyspark-style` | Automatic on writing/restructuring PySpark code — column refs, joins, windows, chaining |
@@ -267,11 +277,13 @@ Eleven lines differ from upstream, every one of them reading `node` where upstre
 | `iso-24495-4/SKILL.md` | 4 | the four workflow commands |
 | `audit-text.ts`, `audit-corpus.ts`, `audit-evidence.ts`, `generate-report.ts`, `score-maturity.ts` | 5 | one usage string each |
 
-The other 12 vendored files are byte-identical to upstream 0.6.2. To check, diff this tree against a fresh clone: every differing line should contain `bun` or `node`.
+Two more lines are deleted rather than changed: the `iso-24495-5` bullet in `iso-24495-1/SKILL.md` (Domain Extension Triggers) and the matching bullet in `output-styles/iso-24495.md`. Every other vendored file is byte-identical to upstream 0.6.2. To check, diff this tree against a fresh clone: every differing line should contain `bun` or `node`, or be one of those two deleted bullets.
+
+**`iso-24495-5` (document design) is not vendored.** Upstream's `SKILL.md` tells the agent to read `assets/adr-template.md`, `assets/runbook-template.md` and `assets/design-doc-template.md` before writing those document types, and upstream ships none of the three. The skill therefore fails on exactly the documents it exists for. ADRs are covered by `domain-modeling` instead (see the Grilling section).
 
 Still left out: upstream's Codex CLI config (`agents/openai.yaml`) and its `bun:test` suites. `tests/test_audit.sh` covers the CLI contracts instead.
 
-To update: re-copy the `SKILL.md` files, `output-styles/iso-24495.md`, and the directories above, then re-apply the eleven `bun` → `node` changes and run `bash tests/test_audit.sh`. That suite fails if a `SKILL.md` names a file the copy missed, which is the bug that made this section necessary.
+To update: re-copy the `SKILL.md` files (skipping `iso-24495-5`), `output-styles/iso-24495.md`, and the directories above, then re-apply the eleven `bun` → `node` changes, re-delete the two `iso-24495-5` bullets, and run `bash tests/test_audit.sh`. That suite fails if a `SKILL.md` names a file the copy missed, which is the bug that made this section necessary.
 
 ## PySpark style (Palantir guide)
 
@@ -289,6 +301,49 @@ The two skills mirror the ISO pair:
   (file, line, rule, snippet, effect) against the `pyspark-style` rules. Unlike
   `iso-24495-text-audit` it ships no script — the checks are judgement calls (chain length,
   schema contracts), so the model performs them by reading the code.
+
+## Grilling (mattpocock/skills)
+
+Four skills are vendored from [mattpocock/skills](https://github.com/mattpocock/skills) 1.2.3
+(MIT, Copyright (c) 2026 Matt Pocock). They cover alignment before work starts; the rest of that
+repo (specs, tickets, implement, wayfinder, triage, code review, merge conflicts) is left out
+because plan mode, the issue tracker and the built-in `/code-review` already cover it.
+
+| Skill | Invocation | What it does |
+|-------|-----------|--------------|
+| `grilling` | Automatic on "grill" phrases, or `/grilling` | The interview primitive. Maps the subject as a **design tree**, asks the whole **frontier** (every question whose prerequisites are settled) in one **round** as numbered ❓ questions each with a ➡️ recommended answer, then waits. Facts it looks up itself; decisions it puts to you. It stops when the frontier is empty and asks you to confirm the understanding is shared before acting. |
+| `grill-with-docs` | Manual only, `/grill-with-docs` | The same interview, pointed at a repo. Calls `grilling` and `domain-modeling`. |
+| `domain-modeling` | Automatic on `CONTEXT.md`, ADR, or terminology work | Writes each resolved term to a `CONTEXT.md` glossary the moment it settles (root, or per-context via `CONTEXT-MAP.md`), and offers an ADR under `docs/adr/NNNN-slug.md` only when a decision is hard to reverse, surprising without context, and a real trade-off. Formats live in its `references/`. |
+| `writing-for-agents` | Automatic when editing a `SKILL.md`, `CLAUDE.md`, or `AGENTS.md` | Reference for writing documents an agent consumes: context pointers, progressive disclosure, completion criteria, leading words, pruning. `references/SKILL-MECHANICS.md` covers frontmatter and model- vs user-invocation. |
+
+Prefer one question at a time? Upstream's supported opt-out is a line in your global `CLAUDE.md`:
+
+```
+When grilling, ask one question at a time.
+```
+
+### What is vendored
+
+The seven prose files: `grilling/SKILL.md`, `grill-with-docs/SKILL.md`, `domain-modeling/SKILL.md`
+with `CONTEXT-FORMAT.md` and `ADR-FORMAT.md`, and `writing-for-agents/SKILL.md` with
+`SKILL-MECHANICS.md`. Differences from upstream:
+
+- Each `SKILL.md` gains a `metadata` block naming the source, version and licence.
+- Upstream keeps sibling files beside `SKILL.md`; here they live in `references/`, and the links
+  in `SKILL.md` are rewritten to `references/<file>`. That is the path shape
+  `tests/test_audit.sh` checks, so a missing reference file fails the suite.
+- `grill-with-docs/SKILL.md` gains one sentence: "Before the first round, state which of the
+  two skills loaded." Upstream's docs report that the one-line router sometimes runs without
+  loading its two dependencies (the tell is a question dump with no ➡️ recommendations) and that
+  asking which skills loaded is the recovery. Saying it up front makes the failure visible.
+- `grill-me` is not vendored. Its whole body is "call `grilling`", and `/grilling` is already a
+  slash command in Claude Code.
+- Upstream's `agents/openai.yaml` (Codex metadata) is left out, as with the ISO skills.
+
+To update: re-copy the seven files from
+`skills/productivity/{grilling,writing-for-agents}` and `skills/engineering/{grill-with-docs,domain-modeling}`,
+move the sibling files into `references/` and re-apply the path rewrites, re-add the metadata
+blocks and the one `grill-with-docs` sentence, then run `bash tests/test_audit.sh`.
 
 ## Commands
 

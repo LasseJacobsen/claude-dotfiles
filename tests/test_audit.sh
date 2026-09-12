@@ -272,6 +272,8 @@ done
 section "SKILL.md references"
 assert_skill_refs "$ROOT/skills/iso-24495-text-audit" "iso-24495-text-audit/SKILL.md"
 assert_skill_refs "$ROOT/skills/iso-24495-4"          "iso-24495-4/SKILL.md"
+assert_skill_refs "$ROOT/skills/domain-modeling"      "domain-modeling/SKILL.md"
+assert_skill_refs "$ROOT/skills/writing-for-agents"   "writing-for-agents/SKILL.md"
 
 section "runtime wiring"
 # Each SKILL.md tells the agent which runtime to use. Both said 'bun' while the
