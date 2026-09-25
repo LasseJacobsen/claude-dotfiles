@@ -13,13 +13,13 @@
       "Read(.env)",
       "Read(.env.*)",
       "Read(secrets/**)",
-      "Write(.env*)",
-      "Write(secrets/**)"
+      "Edit(.env*)",
+      "Edit(secrets/**)"
     ],
     "ask": [
       "Bash(git push *)",
-      "Write(pyproject.toml)",
-      "Write(uv.lock)"
+      "Edit(pyproject.toml)",
+      "Edit(uv.lock)"
     ]
   },
   "hooks": {
