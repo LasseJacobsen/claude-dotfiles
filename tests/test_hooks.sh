@@ -269,6 +269,40 @@ else
   assert_sh_exit 0 "$RAF" "$(file_payload '/some/file.txt')"         "skips non-.py file"
   assert_sh_exit 0 "$RAF" "$(file_payload '/nonexistent/path.py')"   "skips missing .py file"
 
+  # Formatter choice, tested with a stand-in uv that logs each call instead of
+  # running it, so no ruff, black or project venv is needed.
+  uv_calls_for() {
+    local log="$TMPDIR_BASE/uv-calls.log"
+    : > "$log"
+    ( uv() { echo "$*" >> "$UV_LOG"; }
+      export -f uv
+      export UV_LOG="$log"
+      file_payload "$1" | bash "$HOOKS/$RAF" >/dev/null 2>&1 ) || true
+    cat "$log"
+  }
+  make_py_repo() {  # $1 = repo dir, $2 = dev dependencies for pyproject.toml
+    mkdir -p "$1"
+    git -C "$1" init -q
+    printf '[dependency-groups]\ndev = [%s]\n' "$2" > "$1/pyproject.toml"
+    echo "x = 1" > "$1/mod.py"
+  }
+
+  make_py_repo "$TMPDIR_BASE/black-pinned" '"black==24.10.0"'
+  calls=$(uv_calls_for "$TMPDIR_BASE/black-pinned/mod.py")
+  if grep -q '^run python -m black ' <<<"$calls" && ! grep -q '^run ruff format' <<<"$calls"; then
+    ok "formats with black where pyproject.toml pins black"
+  else
+    fail "expected black and no ruff format; uv calls: $calls"
+  fi
+
+  make_py_repo "$TMPDIR_BASE/black-not-pinned" '"blacken-docs==1.19.0"'
+  calls=$(uv_calls_for "$TMPDIR_BASE/black-not-pinned/mod.py")
+  if grep -q '^run ruff format ' <<<"$calls" && ! grep -q -- '-m black ' <<<"$calls"; then
+    ok "formats with ruff format where black is not pinned"
+  else
+    fail "expected ruff format and no black; uv calls: $calls"
+  fi
+
   PYFILE="$TMPDIR_BASE/test_ruff.py"
   echo "x=1+2" > "$PYFILE"
 
@@ -284,18 +318,22 @@ else
     out=$(sh_stdout "$RAF" "$(file_payload "$PYFILE")")
     [[ -z "$out" ]] && ok "prints nothing for a clean file" || fail "clean file produced output: $out"
 
-    # F401 is auto-fixable and must not be reported; F821 is not and must be.
+    # F401 is report-only: the unused import stays and goes back to Claude along
+    # with F821, while a fixable finding (F541) is still fixed in place.
     BADFILE="$TMPDIR_BASE/test_ruff_bad.py"
-    printf 'import os\nx = y + 1\n' > "$BADFILE"
+    printf 'import os\nx = y + 1\nz = f"abc"\n' > "$BADFILE"
     out=$(sh_stdout "$RAF" "$(file_payload "$BADFILE")")
     if echo "$out" | jq -e '.hookSpecificOutput.hookEventName == "PostToolUse"
                             and (.hookSpecificOutput.additionalContext | test("F821"))
-                            and (.hookSpecificOutput.additionalContext | test("F401") | not)' >/dev/null 2>&1; then
-      ok "feeds unfixable findings back as additionalContext"
+                            and (.hookSpecificOutput.additionalContext | test("F401"))' >/dev/null 2>&1; then
+      ok "feeds unfixed findings back as additionalContext"
     else
-      fail "expected additionalContext naming F821 only; got: $out"
+      fail "expected additionalContext naming F821 and F401; got: $out"
     fi
-    grep -q "import os" "$BADFILE" && fail "fixable F401 was not fixed" || ok "fixes fixable findings in place"
+    grep -q "import os" "$BADFILE" && ok "keeps unused imports (F401 is report-only)" \
+      || fail "unused import was removed"
+    grep -q 'z = "abc"' "$BADFILE" && ok "fixes fixable findings in place" \
+      || fail "fixable F541 was not fixed: $(cat "$BADFILE")"
   else
     skip "ruff not available — skipping .py formatting test"
   fi
