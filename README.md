@@ -16,7 +16,7 @@ claude-dotfiles/
 │   ├── block-git-main.sh               # PreToolUse: block direct commits/pushes to main/master/prod
 │   ├── block-big-binaries.sh           # PreToolUse: block committing large or binary result files
 │   ├── enforce-uv.sh                   # PreToolUse: redirect pip/poetry/conda → uv
-│   ├── ruff-after-edit.sh              # PostToolUse: ruff fix+format on .py edits; unfixable findings go back to Claude
+│   ├── ruff-after-edit.sh              # PostToolUse: ruff fix, then black or ruff format, on .py edits; unfixed findings go back to Claude
 │   ├── nbstripout.sh                   # PostToolUse: strip notebook outputs on .ipynb edits
 │   └── notify.sh                       # Notification: cross-platform desktop notification bridge
 ├── skills/
@@ -181,7 +181,7 @@ If you need a real security boundary, run Claude Code in a sandboxed environment
 
 | Hook | Trigger | What it does |
 |------|---------|--------------|
-| `ruff-after-edit.sh` | `Write`/`Edit`/`MultiEdit` on `.py` | Runs `ruff check --fix` then `ruff format` in place, then re-checks. Findings ruff could not fix (at most 20) go back to Claude as `additionalContext`, so it can fix them; a clean file prints nothing. Always exits 0 |
+| `ruff-after-edit.sh` | `Write`/`Edit`/`MultiEdit` on `.py` | Runs `ruff check --fix` in place, but leaves unused imports (F401), so an import added one edit before its first use survives. Then formats: with `black` if the file's repo pins black in its `pyproject.toml` (`ruff format` would use ruff's line-length, which may differ from black's), otherwise with `ruff format`. Then re-checks. Findings ruff did not fix, unused imports included (at most 20), go back to Claude as `additionalContext`, so it can fix them; a clean file prints nothing. Always exits 0 |
 | `nbstripout.sh` | `Write`/`NotebookEdit` on `*/notebooks/*.ipynb` | Strips cell outputs via `nbstripout`; always exits 0. Scoped to `notebooks/` so scratch notebooks keep their outputs for iterative work. The matcher excludes `Edit`/`MultiEdit` because those are line-based operations that don't make sense on a JSON notebook. |
 
 ### Notification
