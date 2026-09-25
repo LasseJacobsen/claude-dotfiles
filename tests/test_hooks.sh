@@ -279,6 +279,23 @@ else
     else
       fail "ruff-after-edit should always exit 0 (got $code)"
     fi
+    [[ "$(cat "$PYFILE")" == "x = 1 + 2" ]] && ok "formats the file in place" \
+      || fail "file not formatted: $(cat "$PYFILE")"
+    out=$(sh_stdout "$RAF" "$(file_payload "$PYFILE")")
+    [[ -z "$out" ]] && ok "prints nothing for a clean file" || fail "clean file produced output: $out"
+
+    # F401 is auto-fixable and must not be reported; F821 is not and must be.
+    BADFILE="$TMPDIR_BASE/test_ruff_bad.py"
+    printf 'import os\nx = y + 1\n' > "$BADFILE"
+    out=$(sh_stdout "$RAF" "$(file_payload "$BADFILE")")
+    if echo "$out" | jq -e '.hookSpecificOutput.hookEventName == "PostToolUse"
+                            and (.hookSpecificOutput.additionalContext | test("F821"))
+                            and (.hookSpecificOutput.additionalContext | test("F401") | not)' >/dev/null 2>&1; then
+      ok "feeds unfixable findings back as additionalContext"
+    else
+      fail "expected additionalContext naming F821 only; got: $out"
+    fi
+    grep -q "import os" "$BADFILE" && fail "fixable F401 was not fixed" || ok "fixes fixable findings in place"
   else
     skip "ruff not available — skipping .py formatting test"
   fi
