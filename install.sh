@@ -140,18 +140,13 @@ done
 # flags `find -exec` as a risky binary). chmod is best-effort because it can be
 # blocked too — and the bit is not required: Claude Code runs hooks via
 # `bash <hook>.sh` (settings.json), and symlinks already inherit the repo's mode.
+# Skip symlinks: chmod follows them and would change the repo's own files.
 for hook in "$TARGET/hooks/"*.sh "$TARGET/hooks/"*.py; do
   [[ -e "$hook" ]] || continue          # unmatched glob stays literal; skip it
+  [[ -L "$hook" ]] && continue
   chmod +x "$hook" 2>/dev/null || true  # don't abort under set -e if chmod fails/blocked
 done
 
-# Commands — symlink-or-copy
-mkdir -p "$TARGET/commands"
-prune_dir "$REPO/commands" "$TARGET/commands" "command"
-for cmd_file in "$REPO/commands/"*; do
-  [[ -f "$cmd_file" ]] || continue
-  link_or_copy "$cmd_file" "$TARGET/commands/$(basename "$cmd_file")" "command: $(basename "$cmd_file")"
-done
 
 # Skills — replace any existing target before copying so re-runs don't nest
 # (cp -r src dst/ when dst/src already exists copies into dst/src/src).
@@ -169,13 +164,12 @@ for skill_dir in "$REPO/skills/"*/; do
   fi
 done
 
-# Output styles — symlink-or-copy. settings.json selects the default style by
-# its frontmatter name; /output-style switches per session.
-mkdir -p "$TARGET/output-styles"
-prune_dir "$REPO/output-styles" "$TARGET/output-styles" "output style"
-for style_file in "$REPO/output-styles/"*; do
-  [[ -f "$style_file" ]] || continue
-  link_or_copy "$style_file" "$TARGET/output-styles/$(basename "$style_file")" "output style: $(basename "$style_file")"
+# Retired dirs: the repo no longer ships commands or output styles. Prune what
+# earlier installs linked there, then drop the dir if nothing else is in it.
+for retired in commands:command output-styles:"output style"; do
+  dir="${retired%%:*}"
+  prune_dir "$REPO/$dir" "$TARGET/$dir" "${retired#*:}"
+  rmdir "$TARGET/$dir" 2>/dev/null || true
 done
 
 # Seed settings.local.json from example on first run

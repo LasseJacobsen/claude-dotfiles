@@ -52,6 +52,18 @@ echo "a plan"          > "$T/plans/p.md"
 echo "{\"t\":1}"       > "$T/backups/b.jsonl"
 echo "{\"local\":true}" > "$T/settings.local.json"
 
+# Record each repo hook's executable bit, to check install leaves them alone.
+# `-x` rather than a mode string: stat flags differ between GNU and BSD.
+hook_modes() {
+  local h out=""
+  for h in "$ROOT/hooks/"*; do
+    [[ -f "$h" ]] || continue
+    [[ -x "$h" ]] && out+="x " || out+="- "
+  done
+  echo "$out"
+}
+MODES_BEFORE=$(hook_modes)
+
 LOG="$TMPDIR_BASE/install-1.log"
 if run_install "$T" "$LOG"; then
   ok "install.sh exits 0 on a managed target"
@@ -68,6 +80,12 @@ assert_log_has "Pruned hook: stray.py"         "$LOG" "logs the pruned hook"
 assert_log_has "Pruned skill: stale-skill"     "$LOG" "logs the pruned skill"
 assert_log_has "Pruned command: stray.md"      "$LOG" "logs the pruned command"
 assert_log_has "Pruned output style: stray.md" "$LOG" "logs the pruned output style"
+
+section "repo files are not modified"
+# install.sh chmods copied hooks; through a symlink that would flip the bit
+# on the repo's own file and leave the working tree dirty after every run.
+[[ "$(hook_modes)" == "$MODES_BEFORE" ]] && ok "repo hook modes unchanged by install" \
+  || fail "install changed the executable bit on repo hooks"
 
 section "every repo entry is installed"
 missing=0; count=0
@@ -88,7 +106,7 @@ elif [[ "$missing" -eq 0 ]]; then
 fi
 assert_present "$T/settings.json" "settings.json installed"
 assert_present "$T/CLAUDE.md"     "CLAUDE.md installed"
-assert_present "$T/skills/bro/SKILL.md" "skill directories are installed with their contents"
+assert_present "$T/skills/domain-modeling/SKILL.md" "skill directories are installed with their contents"
 
 section "unmanaged state survives"
 [[ "$(cat "$T/projects/x/notes.md")" == "user notes" ]] && ok "projects/ untouched" || fail "projects/ changed"
@@ -118,10 +136,10 @@ fi
 section "pruning a symlinked entry never follows it into the repo"
 S="$TMPDIR_BASE/symlink/.claude"
 mkdir -p "$S/skills"; touch "$S/.managed-by-dotfiles"
-if ln -s "$ROOT/skills/bro" "$S/skills/gone" 2>/dev/null; then
+if ln -s "$ROOT/skills/domain-modeling" "$S/skills/gone" 2>/dev/null; then
   run_install "$S" "$TMPDIR_BASE/install-3.log" || fail "install.sh failed on symlink target"
   assert_absent  "$S/skills/gone"          "stale symlink removed"
-  assert_present "$ROOT/skills/bro/SKILL.md" "symlink target in the repo untouched"
+  assert_present "$ROOT/skills/domain-modeling/SKILL.md" "symlink target in the repo untouched"
 else
   skip "symlinks unavailable here (Windows without Developer Mode) — symlink prune test skipped"
 fi

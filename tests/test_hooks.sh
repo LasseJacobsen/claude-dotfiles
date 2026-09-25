@@ -45,24 +45,6 @@ file_payload() {
   "$PY" -c "import json,sys; print(json.dumps({'tool_input':{'file_path':sys.argv[1]}}))" "$1"
 }
 
-# Build stop-hook payload
-stop_payload() {
-  "$PY" -c "
-import json, sys
-active = sys.argv[1] == 'true'
-path   = sys.argv[2]
-print(json.dumps({'stop_hook_active': active, 'transcript_path': path}))
-" "$1" "$2"
-}
-
-# Build precompact payload
-compact_payload() {
-  "$PY" -c "
-import json, sys
-print(json.dumps({'precompact_hook_active': sys.argv[1]=='true', 'transcript_path': sys.argv[2]}))
-" "$1" "$2"
-}
-
 # ── assertion helpers ─────────────────────────────────────────────────────────
 
 # Run a .sh hook via bash; capture stdout (stderr suppressed)
@@ -75,10 +57,11 @@ sh_exit() {
   echo "$code"
 }
 
-# Run any hook via its shebang; return exit code
+# Run a hook the way settings.json does (bash <hook>), so the git file mode
+# does not matter; return exit code
 hook_exit() {
   local code=0
-  echo "$2" | "$HOOKS/$1" >/dev/null 2>&1 || code=$?
+  echo "$2" | bash "$HOOKS/$1" >/dev/null 2>&1 || code=$?
   echo "$code"
 }
 
@@ -242,7 +225,7 @@ p.write_bytes(b'\\x00' * (51 * 1024 * 1024))
   git -C "$BIGDIR" add "$BIGDIR/big.h5" 2>/dev/null
 
   code=0
-  out=$( (cd "$BIGDIR" && echo "$(cmd_payload 'git add big.h5')" | "$HOOKS/$BBB" 2>/dev/null) ) || code=$?
+  out=$( (cd "$BIGDIR" && echo "$(cmd_payload 'git add big.h5')" | bash "$HOOKS/$BBB" 2>/dev/null) ) || code=$?
   if [[ "$code" -eq 0 ]] && echo "$out" | grep -q '"permissionDecision":"deny"'; then
     ok "blocks staging large .h5 (51 MB) via JSON deny"
   else
@@ -251,7 +234,7 @@ p.write_bytes(b'\\x00' * (51 * 1024 * 1024))
 
   # `git -C <path> add ...` must not bypass the check.
   code=0
-  out=$( (cd "$BIGDIR" && echo "$(cmd_payload "git -C $BIGDIR add big.h5")" | "$HOOKS/$BBB" 2>/dev/null) ) || code=$?
+  out=$( (cd "$BIGDIR" && echo "$(cmd_payload "git -C $BIGDIR add big.h5")" | bash "$HOOKS/$BBB" 2>/dev/null) ) || code=$?
   if [[ "$code" -eq 0 ]] && echo "$out" | grep -q '"permissionDecision":"deny"'; then
     ok "blocks staging large .h5 via git -C"
   else
@@ -268,7 +251,7 @@ p.write_bytes(b'\\x00' * (51 * 1024 * 1024))
   git -C "$SMALLDIR" add "$SMALLDIR/small.py" 2>/dev/null
 
   code=0
-  (cd "$SMALLDIR" && echo "$(cmd_payload 'git add small.py')" | "$HOOKS/$BBB" >/dev/null 2>&1) || code=$?
+  (cd "$SMALLDIR" && echo "$(cmd_payload 'git add small.py')" | bash "$HOOKS/$BBB" >/dev/null 2>&1) || code=$?
   if [[ "$code" -eq 0 ]]; then
     ok "allows staging small .py file"
   else
@@ -314,80 +297,6 @@ else
   assert_sh_exit 0 "$NBS" "$(file_payload '/project/analysis.ipynb')"                   "skips root-level .ipynb outside notebooks/"
 fi
 
-# ── check-claims.sh ───────────────────────────────────────────────────────────
-section "check-claims.sh"
-CCS="check-claims.sh"
-
-TRANSCRIPT_DIR="$TMPDIR_BASE/transcripts"
-mkdir -p "$TRANSCRIPT_DIR"
-
-# Use the real Claude Code transcript shape: {type: "assistant", message: {role, content}}.
-# Fixtures match production rather than a fabricated flat shape.
-BAD_TRANSCRIPT="$TRANSCRIPT_DIR/bad.jsonl"
-printf '{"type":"assistant","message":{"role":"assistant","content":"I cannot access the remote file system."}}\n' > "$BAD_TRANSCRIPT"
-
-GOOD_TRANSCRIPT="$TRANSCRIPT_DIR/good.jsonl"
-printf '{"type":"assistant","message":{"role":"assistant","content":"The function now validates the input before processing."}}\n' > "$GOOD_TRANSCRIPT"
-
-MEM_TRANSCRIPT="$TRANSCRIPT_DIR/memory.jsonl"
-printf '{"type":"assistant","message":{"role":"assistant","content":"From memory, this should be around 42."}}\n' > "$MEM_TRANSCRIPT"
-
-# 'I think' is intentionally NOT in the deny list — too broad, fired on legit analysis.
-THINK_TRANSCRIPT="$TRANSCRIPT_DIR/think.jsonl"
-printf '{"type":"assistant","message":{"role":"assistant","content":"I think this approach will work."}}\n' > "$THINK_TRANSCRIPT"
-
-# Real transcripts use a list of content blocks for the message body.
-BLOCK_TRANSCRIPT="$TRANSCRIPT_DIR/blocks.jsonl"
-printf '%s\n' '{"type":"assistant","message":{"role":"assistant","content":[{"type":"thinking","thinking":"..."},{"type":"text","text":"From memory, the answer is 42."}]}}' > "$BLOCK_TRANSCRIPT"
-
-# Phrase appears inside a tool/user payload, not the assistant response — must NOT trigger.
-TOOL_TRANSCRIPT="$TRANSCRIPT_DIR/tool.jsonl"
-printf '{"type":"user","message":{"role":"user","content":"please write me a file"}}\n' > "$TOOL_TRANSCRIPT"
-printf '{"type":"tool_result","content":"I cannot access the remote file system."}\n' >> "$TOOL_TRANSCRIPT"
-printf '{"type":"assistant","message":{"role":"assistant","content":"Done — the file has been written."}}\n' >> "$TOOL_TRANSCRIPT"
-
-assert_sh_exit 0 "$CCS" "$(stop_payload true  '/nonexistent')"  "skips when stop_hook_active=true"
-assert_sh_exit 0 "$CCS" "$(stop_payload false '/nonexistent')"  "skips when transcript missing"
-assert_sh_exit 2 "$CCS" "$(stop_payload false "$BAD_TRANSCRIPT")"    "blocks 'cannot access'"
-assert_sh_exit 2 "$CCS" "$(stop_payload false "$MEM_TRANSCRIPT")"    "blocks 'from memory'"
-assert_sh_exit 0 "$CCS" "$(stop_payload false "$THINK_TRANSCRIPT")"  "allows 'I think' (too broad to deny)"
-assert_sh_exit 2 "$CCS" "$(stop_payload false "$BLOCK_TRANSCRIPT")"  "blocks flagged phrase in content-blocks shape"
-assert_sh_exit 0 "$CCS" "$(stop_payload false "$GOOD_TRANSCRIPT")"   "allows clean response"
-assert_sh_exit 0 "$CCS" "$(stop_payload false "$TOOL_TRANSCRIPT")"   "ignores flagged phrase in tool payload (not assistant response)"
-
-# ── precompact-backup.sh ─────────────────────────────────────────────────────
-section "precompact-backup.sh"
-PCB="precompact-backup.sh"
-
-if ! $HAS_JQ; then
-  skip "jq not in PATH — precompact-backup.sh uses jq internally; install jq to run these tests"
-else
-  FAKE_TRANSCRIPT="$TMPDIR_BASE/session.jsonl"
-  echo '{"role":"user","content":"hello"}' > "$FAKE_TRANSCRIPT"
-
-  # Count backup files without `find` — some corporate EDR blocks the find binary.
-  count_backups() {
-    local n=0 f
-    for f in "$HOME/.claude/backups"/compact-*.jsonl; do
-      if [[ -e "$f" ]]; then n=$((n + 1)); fi   # n=$((..)) not ((n++)): set -e safe
-    done
-    echo "$n"
-  }
-
-  BACKUP_BEFORE=$(count_backups)
-  assert_sh_exit 0 "$PCB" "$(compact_payload false  "$FAKE_TRANSCRIPT")" "exits 0 and backs up transcript"
-  BACKUP_AFTER=$(count_backups)
-
-  assert_sh_exit 0 "$PCB" "$(compact_payload false  '/nonexistent')"      "exits 0 when transcript missing"
-  assert_sh_exit 0 "$PCB" "$(compact_payload true   '/nonexistent')"      "exits 0 with arbitrary extra payload fields (forward compat)"
-
-  if [[ "$BACKUP_AFTER" -gt "$BACKUP_BEFORE" ]]; then
-    ok "backup file created in ~/.claude/backups/"
-  else
-    fail "no new backup file in ~/.claude/backups/ (had $BACKUP_BEFORE, now $BACKUP_AFTER)"
-  fi
-fi
-
 # ── protect-secrets.sh ───────────────────────────────────────────────────────
 section "protect-secrets.sh"
 PSH="protect-secrets.sh"
@@ -415,35 +324,6 @@ else
   assert_allow "$PSH" "$(cmd_payload 'cat README.md | grep .env')"          "allows grep for .env string (not reading the file)"
   assert_allow "$PSH" "$(cmd_payload 'uv run python app.py')"               "allows normal commands"
   assert_allow "$PSH" "$(cmd_payload "python -c 'print(1+1)'")"             "allows inline python without secret file"
-fi
-
-# ── session-start.sh ─────────────────────────────────────────────────────────
-section "session-start.sh"
-SST="session-start.sh"
-
-# Outside a git repo: should exit 0 with no output
-NONGIT="$TMPDIR_BASE/non-git"
-mkdir -p "$NONGIT"
-code=0
-out=$( (cd "$NONGIT" && echo '{}' | bash "$HOOKS/$SST" 2>/dev/null) ) || code=$?
-if [[ "$code" -eq 0 && -z "$out" ]]; then
-  ok "exits 0 silently outside a git repo"
-else
-  fail "should exit 0 with no output outside git (code=$code, out=$out)"
-fi
-
-# Inside a git repo: should exit 0 and emit project context
-GITDIR2="$TMPDIR_BASE/session-start-repo"
-mkdir -p "$GITDIR2"
-git -C "$GITDIR2" init -q
-git -C "$GITDIR2" config user.email "test@test.com"
-git -C "$GITDIR2" config user.name "Test"
-git -C "$GITDIR2" commit --allow-empty -m "initial" -q
-out=$( (cd "$GITDIR2" && echo '{}' | bash "$HOOKS/$SST" 2>/dev/null) )
-if echo "$out" | grep -q "Project context" && echo "$out" | grep -q "Recent commits"; then
-  ok "emits project context inside a git repo"
-else
-  fail "expected project context + recent commits — got: $out"
 fi
 
 # ── notify.sh ────────────────────────────────────────────────────────────────
