@@ -13,6 +13,13 @@
       "Read(.env)",
       "Read(.env.*)",
       "Read(secrets/**)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(**/*.p12)",
+      "Read(**/*.pfx)",
+      "Read(**/credentials.json)",
+      "Read(**/.mcp.local.json)",
+      "Read(~/.ssh/**)",
       "Edit(.env*)",
       "Edit(secrets/**)"
     ],
