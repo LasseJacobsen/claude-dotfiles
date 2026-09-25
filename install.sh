@@ -140,8 +140,10 @@ done
 # flags `find -exec` as a risky binary). chmod is best-effort because it can be
 # blocked too — and the bit is not required: Claude Code runs hooks via
 # `bash <hook>.sh` (settings.json), and symlinks already inherit the repo's mode.
+# Skip symlinks: chmod follows them and would change the repo's own files.
 for hook in "$TARGET/hooks/"*.sh "$TARGET/hooks/"*.py; do
   [[ -e "$hook" ]] || continue          # unmatched glob stays literal; skip it
+  [[ -L "$hook" ]] && continue
   chmod +x "$hook" 2>/dev/null || true  # don't abort under set -e if chmod fails/blocked
 done
 
