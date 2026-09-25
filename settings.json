@@ -1,12 +1,9 @@
 {
-  "includeCoAuthoredBy": false,
-  "outputStyle": "ISO 24495",
   "attribution": {"commit": "", "pr": ""},
   "env": {
     "MPLBACKEND": "Agg",
     "PYTHONDONTWRITEBYTECODE": "1",
-    "LC_ALL": "C.UTF-8",
-    "UV_NO_SYNC": "0"
+    "LC_ALL": "C.UTF-8"
   },
   "permissions": {
     "deny": [
@@ -91,37 +88,6 @@
             "type": "command",
             "command": "bash \"$HOME/.claude/hooks/nbstripout.sh\"",
             "timeout": 10
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$HOME/.claude/hooks/check-claims.sh\""
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$HOME/.claude/hooks/precompact-backup.sh\""
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "matcher": "startup|resume|clear",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$HOME/.claude/hooks/session-start.sh\""
           }
         ]
       }

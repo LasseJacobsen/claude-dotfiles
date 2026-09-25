@@ -8,4 +8,4 @@ metadata:
   source-license: MIT
 ---
 
-Call the Skill tool twice, for "grilling" and "domain-modeling". Before the first round, state which of the two skills loaded.
+Call the Skill tool twice, for "anthropic-skills:grilling" and "domain-modeling". Before the first round, state which of the two skills loaded.

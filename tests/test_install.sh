@@ -88,7 +88,7 @@ elif [[ "$missing" -eq 0 ]]; then
 fi
 assert_present "$T/settings.json" "settings.json installed"
 assert_present "$T/CLAUDE.md"     "CLAUDE.md installed"
-assert_present "$T/skills/bro/SKILL.md" "skill directories are installed with their contents"
+assert_present "$T/skills/domain-modeling/SKILL.md" "skill directories are installed with their contents"
 
 section "unmanaged state survives"
 [[ "$(cat "$T/projects/x/notes.md")" == "user notes" ]] && ok "projects/ untouched" || fail "projects/ changed"
@@ -118,10 +118,10 @@ fi
 section "pruning a symlinked entry never follows it into the repo"
 S="$TMPDIR_BASE/symlink/.claude"
 mkdir -p "$S/skills"; touch "$S/.managed-by-dotfiles"
-if ln -s "$ROOT/skills/bro" "$S/skills/gone" 2>/dev/null; then
+if ln -s "$ROOT/skills/domain-modeling" "$S/skills/gone" 2>/dev/null; then
   run_install "$S" "$TMPDIR_BASE/install-3.log" || fail "install.sh failed on symlink target"
   assert_absent  "$S/skills/gone"          "stale symlink removed"
-  assert_present "$ROOT/skills/bro/SKILL.md" "symlink target in the repo untouched"
+  assert_present "$ROOT/skills/domain-modeling/SKILL.md" "symlink target in the repo untouched"
 else
   skip "symlinks unavailable here (Windows without Developer Mode) — symlink prune test skipped"
 fi

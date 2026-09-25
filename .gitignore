@@ -24,11 +24,7 @@
 # Source directories
 !hooks/
 !hooks/**
-!commands/
-!commands/**
 !skills/
 !skills/**
-!output-styles/
-!output-styles/**
 !tests/
 !tests/**
