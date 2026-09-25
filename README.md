@@ -16,7 +16,7 @@ claude-dotfiles/
 │   ├── block-git-main.sh               # PreToolUse: block direct commits/pushes to main/master/prod
 │   ├── block-big-binaries.sh           # PreToolUse: block committing large or binary result files
 │   ├── enforce-uv.sh                   # PreToolUse: redirect pip/poetry/conda → uv
-│   ├── ruff-after-edit.sh              # PostToolUse: ruff lint+format on every .py edit
+│   ├── ruff-after-edit.sh              # PostToolUse: ruff fix+format on .py edits; unfixable findings go back to Claude
 │   ├── nbstripout.sh                   # PostToolUse: strip notebook outputs on .ipynb edits
 │   └── notify.sh                       # Notification: cross-platform desktop notification bridge
 ├── skills/
@@ -160,7 +160,7 @@ Hooks live in `~/.claude/hooks/` and run deterministically on every matching too
 | `block-git-main.sh` | Any `Bash` | `git commit`/`push` while on `main`, `master`, `prod`, or `production` |
 | `block-big-binaries.sh` | `git add` / `git commit -a` | Files >50 MB or with binary result extensions (`.h5`, `.vtk`, `.pkl`, `.npz`, etc.) |
 | `enforce-uv.sh` | Any `Bash` | Denies `pip install`, `pip uninstall`, `poetry add`, `poetry install`, `conda install`, `python -m pytest`, `python -m ruff`, and bare `pytest`. The deny reason includes the suggested uv replacement (e.g. `uv add`, `uv run pytest`). |
-| `protect-secrets.sh` | Any `Bash` | Read-tools (`cat`/`less`/`head`/`tail`/`awk`/`sed`/`xxd`/`od`/`strings`/`nl`/`tac`/`dd`) and inline interpreters (`python -c`, `ruby -e`, etc.) when targeting `.env*`, `*.pem`, `*.key`, `credentials.json`, `.ssh/` paths. Bash bypass of `permissions.deny` (issue #6631). Best-effort tripwire — see posture note below. |
+| `protect-secrets.sh` | Any `Bash` | Read-tools (`cat`/`less`/`head`/`tail`/`awk`/`sed`/`xxd`/`od`/`strings`/`nl`/`tac`/`dd`) and inline interpreters (`python -c`, `ruby -e`, etc.) when targeting `.env*`, `*.pem`, `*.key`, `credentials.json`, `.ssh/` paths. Best-effort tripwire — see the note below. |
 
 #### Posture, not protection
 
@@ -169,13 +169,19 @@ Hooks live in `~/.claude/hooks/` and run deterministically on every matching too
 - `block-destructive.sh` doesn't catch `rm -rf "$HOME"`, `rm -rf ${HOME}`, `rm -rf /etc`, `dd if=/dev/zero of=/dev/sda`, `mkfs`, `> /dev/sda`, `find / -delete`, `shred`, `wipefs`, separated `-r -f` flags, etc.
 - `protect-secrets.sh` doesn't catch process substitution (`<(cat .env)`), here-docs, base64-piped reads, or arbitrary script files that read secrets at runtime.
 
+#### Secrets: deny rules plus the hook
+
+The `Read(...)` deny rules in `settings.json` cover `.env*`, `secrets/**`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `credentials.json`, `.mcp.local.json` and `~/.ssh/`. They stop Claude's Read tool, and Claude Code (2.1.282, tested) also applies them to `cat`, `head`, `tail`, `sed`, `awk`, `od`, `strings`, `nl` and `tac` in Bash.
+
+They do not stop `less`, `xxd`, `dd if=`, paths built from variables (`cat $PWD/.env`), or inline interpreters (`python -c "open('.env')"`). `protect-secrets.sh` catches those, so keep both.
+
 If you need a real security boundary, run Claude Code in a sandboxed environment (container, VM, or dedicated user) and rely on filesystem permissions instead of regex matching.
 
 ### PostToolUse
 
 | Hook | Trigger | What it does |
 |------|---------|--------------|
-| `ruff-after-edit.sh` | `Write`/`Edit`/`MultiEdit` on `.py` | Runs `ruff check --fix` then `ruff format` in-place; always exits 0 |
+| `ruff-after-edit.sh` | `Write`/`Edit`/`MultiEdit` on `.py` | Runs `ruff check --fix` then `ruff format` in place, then re-checks. Findings ruff could not fix (at most 20) go back to Claude as `additionalContext`, so it can fix them; a clean file prints nothing. Always exits 0 |
 | `nbstripout.sh` | `Write`/`NotebookEdit` on `*/notebooks/*.ipynb` | Strips cell outputs via `nbstripout`; always exits 0. Scoped to `notebooks/` so scratch notebooks keep their outputs for iterative work. The matcher excludes `Edit`/`MultiEdit` because those are line-based operations that don't make sense on a JSON notebook. |
 
 ### Notification
