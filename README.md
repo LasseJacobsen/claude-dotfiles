@@ -218,7 +218,7 @@ If BurntToast is not installed, `notify.sh` silently falls through — no error.
 | `grill-with-docs` | Manual only — "/grill-with-docs", the same interview plus `GLOSSARY.md` and ADRs written as terms and decisions settle |
 | `domain-modeling` | Automatic when editing `GLOSSARY.md`, recording an ADR, or settling codebase terminology |
 | `setup-matt-pocock-skills` | Manual only — "/setup-matt-pocock-skills", once per repo: issue tracker (Azure DevOps supported) and domain-doc layout |
-| `to-spec` / `to-tickets` / `implement` | Manual only — spec as a Feature, tickets as User Stories, then build one test-first (see mattpocock/skills section) |
+| `to-spec` / `to-tickets` / `implement` | Manual only — spec as a Feature, tickets as User Stories with Tasks in a chosen sprint, then build one test-first (see mattpocock/skills section) |
 | `tdd` | Automatic on test-first work; called by `implement` |
 | `diagnosing-bugs` | Automatic on "diagnose", "debug this", or a report of something broken, failing or slow |
 | `codebase-design` | Automatic when designing a module's interface or deciding where a seam goes |
@@ -295,7 +295,8 @@ of starting a new one.
 | `implement` | Manual only, `/implement [ref]` | Builds a ticket or spec using `tdd` at the agreed seams, runs the tests, reviews with `code-review` (the built-in one) and commits. |
 
 **Azure DevOps** (`references/issue-tracker-ado.md`, added here; upstream has no Azure DevOps
-template) uses the Agile hierarchy through the Azure DevOps MCP server:
+template) uses the Agile hierarchy through the Azure DevOps MCP server, with the User Story as
+the unit on the board and in sprints:
 
 | Skill term | Work item |
 |---|---|
@@ -303,9 +304,13 @@ template) uses the Agile hierarchy through the Azure DevOps MCP server:
 | Ticket | **User Story**, child of the Feature; acceptance criteria go in the Acceptance Criteria field |
 | Blocked by | **Predecessor** link to the blocking story |
 | Triage label (`ready-for-agent`) | Tag |
-| Step inside a ticket | **Task** under the story, only when you ask for Tasks |
+| Ticket step | **Task** under the story: 2–6 per story, numbered in order, no links between them |
+| Sprint | Picked per `/to-tickets` run: current sprint, a named one, or the team's backlog |
 
-Setup fills in the organization, project, area path and iteration path, and checks that the MCP
+`/to-tickets` shows each story's Tasks in the breakdown you approve, then asks for the sprint.
+`/implement` on a story sets it Active, works and closes its Tasks in order, and leaves the story
+Resolved for you to close. Setup records the organization, project, team and the team's area path
+(read from the team settings, so stories land on the team's board), and checks that the MCP
 server can read the project. Tool names in the template match `microsoft/azure-devops-mcp` as of
 October 2026 (`wit_work_item`, `wit_work_item_write`, `wit_work_item_link_write`, …); for an older
 server the template says to pick the tool by description. Projects on the Scrum process call a
@@ -337,6 +342,9 @@ Differences from upstream:
 - `setup-matt-pocock-skills` gains the Azure DevOps option: `references/issue-tracker-ado.md`
   (new), and in `SKILL.md` the remote check, the menu entry, the reachability check and the
   template link.
+- `to-tickets/SKILL.md` gains two lines: a **Tasks** entry in the breakdown shown for approval
+  (only when the tracker doc gives tickets child tasks), and an **Azure DevOps** publish branch
+  that defers to the tracker doc.
 - `implement` and `tdd` name `code-review`, which resolves to the built-in `/code-review`
   rather than upstream's two-axis review. Unchanged text; different skill behind the name.
 - `writing-for-agents` lives in this repo's `.claude/skills/`, so it loads only when working on
@@ -350,7 +358,7 @@ To update: re-copy `skills/productivity/writing-for-agents` (into `.claude/skill
 `skills/engineering/{grill-with-docs,domain-modeling,setup-matt-pocock-skills,to-spec,to-tickets,implement,tdd,diagnosing-bugs,codebase-design}`
 (into `skills/`). Move the sibling files into `references/` and re-apply the link rewrites,
 re-add the metadata blocks, the one `grill-with-docs` sentence, the `anthropic-skills:grilling`
-name and the Azure DevOps edits to `setup-matt-pocock-skills/SKILL.md` (keep
+name, the two `to-tickets` lines and the Azure DevOps edits to `setup-matt-pocock-skills/SKILL.md` (keep
 `references/issue-tracker-ado.md`), then run `make test`. Diff upstream's
 `issue-tracker-github.md` against the previous version: a new operation there usually needs a
 matching line in the Azure DevOps template.

@@ -55,7 +55,7 @@ Record the choice in `docs/agents/issue-tracker.md`. The GitHub and GitLab templ
 
 A GitHub or GitLab tracker needs a reachable repo. When the user picks one and no `git remote` points at that host, get the repo URL from them and wire it up (`git init` if needed, `git remote add origin <url>`) before going further. Done when `gh repo view` / `glab repo view` prints the project from inside this directory; if it can't, stop and tell the user what's missing.
 
-An Azure DevOps tracker needs the Azure DevOps MCP server connected. Ask for the organization, project and area path (and iteration path, if the team sets one on new work items), proposing values from the `git remote` URL. Done when reading the project's `User Story` work item type (`wit_work_item` `get_type`) succeeds; if it can't, stop and tell the user whether the server is missing or the project is wrong.
+An Azure DevOps tracker needs the Azure DevOps MCP server connected. Ask for the organization, project and team, proposing the first two from the `git remote` URL, then read the team's area path with `work` `get_team_settings` and confirm it. Don't record a sprint: `/to-tickets` asks for one each run. Done when reading the project's `User Story` work item type (`wit_work_item` `get_type`) succeeds; if it can't, stop and tell the user whether the server is missing or the project is wrong.
 
 **Section B: Triage label vocabulary.** Skip this section entirely if the `triage` skill isn't installed (exploration told you), since an uninstalled skill needs no labels.
 
@@ -116,7 +116,7 @@ Then write the docs files using the seed templates in this skill folder as a sta
 
 - `references/issue-tracker-github.md`: GitHub issue tracker
 - `references/issue-tracker-gitlab.md`: GitLab issue tracker
-- `references/issue-tracker-ado.md`: Azure DevOps issue tracker (fill in the organization, project and paths)
+- `references/issue-tracker-ado.md`: Azure DevOps issue tracker (fill in the organization, project, team and area path)
 - `references/issue-tracker-local.md`: local-markdown issue tracker
 - `references/triage-labels.md`: label mapping (only if `triage` is installed)
 - `references/domain.md`: domain doc consumer rules + layout

@@ -88,6 +88,13 @@ if grep -qF 'references/issue-tracker-ado.md' "$ROOT/skills/setup-matt-pocock-sk
 else
   fail "setup-matt-pocock-skills no longer names references/issue-tracker-ado.md"
 fi
+# The ADO tracker relies on to-tickets showing Tasks for approval; a re-vendor
+# that copies upstream's to-tickets over this one drops those lines.
+if grep -qF '**Tasks**' "$ROOT/skills/to-tickets/SKILL.md" && grep -qF '**Azure DevOps**' "$ROOT/skills/to-tickets/SKILL.md"; then
+  ok "to-tickets keeps the Tasks and Azure DevOps lines"
+else
+  fail "to-tickets lost the Tasks or Azure DevOps line (see README → What is vendored)"
+fi
 
 section "invocation"
 # book-to-skill's description is long; keeping it out of the model's skill list
