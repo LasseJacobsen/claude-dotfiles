@@ -261,6 +261,11 @@ Prefer one question at a time? Upstream's supported opt-out is a line in your gl
 When grilling, ask one question at a time.
 ```
 
+Upstream 1.3 renamed the glossary from `CONTEXT.md` (and `CONTEXT-MAP.md`) to `GLOSSARY.md`
+(and `GLOSSARY-MAP.md`). In a project that still has the old names, rename them
+(`git mv CONTEXT.md GLOSSARY.md`) so `domain-modeling` finds the existing glossary instead
+of starting a new one.
+
 ### What is vendored
 
 Six prose files: `grill-with-docs/SKILL.md`, `domain-modeling/SKILL.md` with
