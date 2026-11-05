@@ -20,9 +20,9 @@ claude-dotfiles/
 │   ├── nbstripout.sh                   # PostToolUse: strip notebook outputs on .ipynb edits
 │   └── notify.sh                       # Notification: cross-platform desktop notification bridge
 ├── skills/
-│   ├── domain-modeling/                # Vendored: CONTEXT.md glossary + ADR discipline (see Grilling section)
+│   ├── domain-modeling/                # Vendored: GLOSSARY.md glossary + ADR discipline (see Grilling section)
 │   │   ├── SKILL.md
-│   │   └── references/                 #   CONTEXT-FORMAT.md, ADR-FORMAT.md
+│   │   └── references/                 #   GLOSSARY-FORMAT.md, ADR-FORMAT.md
 │   ├── grill-with-docs/
 │   │   └── SKILL.md                    # Vendored: /grill-with-docs, anthropic-skills:grilling + domain-modeling
 │   ├── iso-24495-code/
@@ -208,8 +208,8 @@ If BurntToast is not installed, `notify.sh` silently falls through — no error.
 
 | Skill | Trigger |
 |-------|---------|
-| `grill-with-docs` | Manual only — "/grill-with-docs", the same interview plus `CONTEXT.md` and ADRs written as terms and decisions settle |
-| `domain-modeling` | Automatic when editing `CONTEXT.md`, recording an ADR, or settling codebase terminology |
+| `grill-with-docs` | Manual only — "/grill-with-docs", the same interview plus `GLOSSARY.md` and ADRs written as terms and decisions settle |
+| `domain-modeling` | Automatic when editing `GLOSSARY.md`, recording an ADR, or settling codebase terminology |
 | `writing-for-agents` | Project-only (this repo's `.claude/skills/`): automatic when creating or editing a `SKILL.md`, `CLAUDE.md`, or `AGENTS.md` here |
 | `iso-24495-code` | Automatic on code readability (naming, structure) |
 | `pyspark-style` | Automatic on writing/restructuring PySpark code — column refs, joins, windows, chaining |
@@ -243,7 +243,7 @@ The two skills split writing from reviewing:
 
 ## Grilling (mattpocock/skills)
 
-Three skills are vendored from [mattpocock/skills](https://github.com/mattpocock/skills) 1.2.3
+Three skills are vendored from [mattpocock/skills](https://github.com/mattpocock/skills) 1.3.2
 (MIT, Copyright (c) 2026 Matt Pocock). They cover alignment before work starts; the rest of that
 repo (specs, tickets, implement, wayfinder, triage, code review, merge conflicts) is left out
 because plan mode, the issue tracker and the built-in `/code-review` already cover it.
@@ -252,7 +252,7 @@ because plan mode, the issue tracker and the built-in `/code-review` already cov
 |-------|-----------|--------------|
 | `anthropic-skills:grilling` | Built in, not vendored. Automatic on "grill" phrases | The interview primitive. Maps the subject as a **design tree**, asks the whole **frontier** (every question whose prerequisites are settled) in one **round** as numbered ❓ questions each with a ➡️ recommended answer, then waits. Facts it looks up itself; decisions it puts to you. It stops when the frontier is empty and asks you to confirm the understanding is shared before acting. |
 | `grill-with-docs` | Manual only, `/grill-with-docs` | The same interview, pointed at a repo. Calls `anthropic-skills:grilling` and `domain-modeling`. |
-| `domain-modeling` | Automatic on `CONTEXT.md`, ADR, or terminology work | Writes each resolved term to a `CONTEXT.md` glossary the moment it settles (root, or per-context via `CONTEXT-MAP.md`), and offers an ADR under `docs/adr/NNNN-slug.md` only when a decision is hard to reverse, surprising without context, and a real trade-off. Formats live in its `references/`. |
+| `domain-modeling` | Automatic on `GLOSSARY.md`, ADR, or terminology work | Writes each resolved term to a `GLOSSARY.md` glossary the moment it settles (root, or per-context via `GLOSSARY-MAP.md`), and offers an ADR under `docs/adr/NNNN-slug.md` only when a decision is hard to reverse, surprising without context, and a real trade-off. Formats live in its `references/`. |
 | `writing-for-agents` | Project-only; automatic when editing a `SKILL.md`, `CLAUDE.md`, or `AGENTS.md` in this repo | Reference for writing documents an agent consumes: context pointers, progressive disclosure, completion criteria, leading words, pruning. `references/SKILL-MECHANICS.md` covers frontmatter and model- vs user-invocation. |
 
 Prefer one question at a time? Upstream's supported opt-out is a line in your global `CLAUDE.md`:
@@ -264,7 +264,7 @@ When grilling, ask one question at a time.
 ### What is vendored
 
 Six prose files: `grill-with-docs/SKILL.md`, `domain-modeling/SKILL.md` with
-`CONTEXT-FORMAT.md` and `ADR-FORMAT.md`, and `.claude/skills/writing-for-agents/SKILL.md` with
+`GLOSSARY-FORMAT.md` and `ADR-FORMAT.md`, and `.claude/skills/writing-for-agents/SKILL.md` with
 `SKILL-MECHANICS.md`. Differences from upstream:
 
 - Each `SKILL.md` gains a `metadata` block naming the source, version and licence.
