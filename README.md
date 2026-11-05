@@ -20,11 +20,18 @@ claude-dotfiles/
 │   ├── nbstripout.sh                   # PostToolUse: strip notebook outputs on .ipynb edits
 │   └── notify.sh                       # Notification: cross-platform desktop notification bridge
 ├── skills/
-│   ├── domain-modeling/                # Vendored: GLOSSARY.md glossary + ADR discipline (see Grilling section)
+│   ├── domain-modeling/                # Vendored: GLOSSARY.md glossary + ADR discipline (see mattpocock/skills section)
 │   │   ├── SKILL.md
 │   │   └── references/                 #   GLOSSARY-FORMAT.md, ADR-FORMAT.md
 │   ├── grill-with-docs/
 │   │   └── SKILL.md                    # Vendored: /grill-with-docs, anthropic-skills:grilling + domain-modeling
+│   ├── setup-matt-pocock-skills/       # Vendored: per-repo issue tracker setup (see mattpocock/skills section)
+│   │   ├── SKILL.md
+│   │   └── references/                 #   tracker templates incl. issue-tracker-ado.md (Azure DevOps), domain.md
+│   ├── to-spec/  to-tickets/  implement/   # Vendored: spec → tickets → implement on the tracker
+│   ├── tdd/                            # Vendored: red-green loop at agreed seams; references/ tests.md, mocking.md
+│   ├── diagnosing-bugs/                # Vendored: feedback-loop-first debugging; scripts/hitl-loop.template.sh
+│   ├── codebase-design/                # Vendored: deep-module vocabulary; references/ DEEPENING.md, DESIGN-IT-TWICE.md
 │   ├── iso-24495-code/
 │   │   └── SKILL.md                    # Vendored: plain-language rules for code (see Plain language section)
 │   ├── pyspark-style/
@@ -112,7 +119,7 @@ make test                   # all three
 
 `test_install.sh` runs `install.sh` against a temp directory and asserts that stale entries in the managed dirs are pruned, every repo entry lands, unmanaged state survives, a re-run prunes nothing, and an unmanaged target is backed up first. It uses two env overrides on `install.sh`: `CLAUDE_DOTFILES_TARGET` (install somewhere other than `~/.claude`) and `CLAUDE_DOTFILES_SKIP_TOOLS=1` (skip the jq/uv/nbstripout install and the global git config edits). The symlink-safety case is skipped where symlinks are unavailable.
 
-`test_skills.sh` checks that **every file a `SKILL.md` names actually exists** (vendored skills have shipped pointing at files the copy never brought over), that `book-to-skill` stays invoke-only and `grill-with-docs` names skills that resolve, and that the `book-to-skill` extractor and scanner run. The extractor part skips without Python 3.9+.
+`test_skills.sh` checks that **every file a `SKILL.md` names actually exists** (vendored skills have shipped pointing at files the copy never brought over), that `book-to-skill` and the mattpocock workflow skills stay invoke-only while the skills they call stay model-invocable, that `grill-with-docs` and `implement` name skills that resolve, and that the `book-to-skill` extractor and scanner run. The extractor part skips without Python 3.9+.
 
 ---
 
@@ -210,6 +217,11 @@ If BurntToast is not installed, `notify.sh` silently falls through — no error.
 |-------|---------|
 | `grill-with-docs` | Manual only — "/grill-with-docs", the same interview plus `GLOSSARY.md` and ADRs written as terms and decisions settle |
 | `domain-modeling` | Automatic when editing `GLOSSARY.md`, recording an ADR, or settling codebase terminology |
+| `setup-matt-pocock-skills` | Manual only — "/setup-matt-pocock-skills", once per repo: issue tracker (Azure DevOps supported) and domain-doc layout |
+| `to-spec` / `to-tickets` / `implement` | Manual only — spec as a Feature, tickets as User Stories, then build one test-first (see mattpocock/skills section) |
+| `tdd` | Automatic on test-first work; called by `implement` |
+| `diagnosing-bugs` | Automatic on "diagnose", "debug this", or a report of something broken, failing or slow |
+| `codebase-design` | Automatic when designing a module's interface or deciding where a seam goes |
 | `writing-for-agents` | Project-only (this repo's `.claude/skills/`): automatic when creating or editing a `SKILL.md`, `CLAUDE.md`, or `AGENTS.md` here |
 | `iso-24495-code` | Automatic on code readability (naming, structure) |
 | `pyspark-style` | Automatic on writing/restructuring PySpark code — column refs, joins, windows, chaining |
@@ -241,12 +253,19 @@ The two skills split writing from reviewing:
   the checks are judgement calls (chain length, schema contracts), so the model performs them
   by reading the code.
 
-## Grilling (mattpocock/skills)
+## mattpocock/skills
 
-Three skills are vendored from [mattpocock/skills](https://github.com/mattpocock/skills) 1.3.2
-(MIT, Copyright (c) 2026 Matt Pocock). They cover alignment before work starts; the rest of that
-repo (specs, tickets, implement, wayfinder, triage, code review, merge conflicts) is left out
-because plan mode, the issue tracker and the built-in `/code-review` already cover it.
+Ten skills are vendored from [mattpocock/skills](https://github.com/mattpocock/skills) 1.3.2
+(MIT, Copyright (c) 2026 Matt Pocock). They fall into three groups: alignment before work starts
+(grilling, glossary), a spec → tickets → implement flow on your issue tracker (Azure DevOps
+included), and the disciplines that flow calls (TDD, debugging, module design). The rest of that
+repo (wayfinder, triage, implement-spec, its own code review, prototype, retro) is left out.
+
+**User-invoked** skills run only when typed, so they cost nothing until then. **Model-invoked**
+skills put their name and description (100–300 characters each) into every session and load
+their body only when used.
+
+### Alignment
 
 | Skill | Invocation | What it does |
 |-------|-----------|--------------|
@@ -266,30 +285,75 @@ Upstream 1.3 renamed the glossary from `CONTEXT.md` (and `CONTEXT-MAP.md`) to `G
 (`git mv CONTEXT.md GLOSSARY.md`) so `domain-modeling` finds the existing glossary instead
 of starting a new one.
 
+### Spec → tickets → implement
+
+| Skill | Invocation | What it does |
+|-------|-----------|--------------|
+| `setup-matt-pocock-skills` | Manual only, once per repo | Asks which issue tracker the repo uses (GitHub, GitLab, **Azure DevOps**, local markdown, or one you describe) and the domain-doc layout, then writes `docs/agents/issue-tracker.md` and `docs/agents/domain.md` and points an `## Agent skills` block in the repo's `CLAUDE.md` at them. The other three skills read those files. |
+| `to-spec` | Manual only, `/to-spec` | Turns the conversation so far into a spec (problem, solution, user stories, implementation and testing decisions, out of scope) and publishes it. No interview; it only confirms the test seams with you. |
+| `to-tickets` | Manual only, `/to-tickets [ref]` | Splits a spec into **tracer-bullet** tickets: each a thin end-to-end slice that fits one fresh context, with its blocking tickets named. Shows you the breakdown to adjust, then publishes blockers first. Wide refactors are sequenced as expand → migrate batches → contract. |
+| `implement` | Manual only, `/implement [ref]` | Builds a ticket or spec using `tdd` at the agreed seams, runs the tests, reviews with `code-review` (the built-in one) and commits. |
+
+**Azure DevOps** (`references/issue-tracker-ado.md`, added here; upstream has no Azure DevOps
+template) uses the Agile hierarchy through the Azure DevOps MCP server:
+
+| Skill term | Work item |
+|---|---|
+| Spec | **Feature**; the spec is its Description |
+| Ticket | **User Story**, child of the Feature; acceptance criteria go in the Acceptance Criteria field |
+| Blocked by | **Predecessor** link to the blocking story |
+| Triage label (`ready-for-agent`) | Tag |
+| Step inside a ticket | **Task** under the story, only when you ask for Tasks |
+
+Setup fills in the organization, project, area path and iteration path, and checks that the MCP
+server can read the project. Tool names in the template match `microsoft/azure-devops-mcp` as of
+October 2026 (`wit_work_item`, `wit_work_item_write`, `wit_work_item_link_write`, …); for an older
+server the template says to pick the tool by description. Projects on the Scrum process call a
+story a Product Backlog Item; edit the generated `docs/agents/issue-tracker.md` for that.
+
+### Disciplines (model-invoked)
+
+| Skill | Triggers on | What it does |
+|-------|------------|--------------|
+| `tdd` | "test-first", "red-green-refactor", integration tests; called by `implement` | Red → green one vertical slice at a time, only at seams you agreed up front. Covers what a good test is (behaviour through the public interface), and the anti-patterns: implementation-coupled, tautological (expected value recomputed the way the code does it), and horizontal slicing. `references/tests.md` and `references/mocking.md` hold the examples. |
+| `diagnosing-bugs` | "diagnose", "debug this", something broken, failing or slow | A gated loop: build a fast, deterministic command that goes red on *this* bug before forming any theory, minimise the repro, rank 3–5 falsifiable hypotheses, instrument one variable at a time with tagged logs, write the regression test before the fix, clean up. Performance regressions get a baseline measurement instead of logs. `scripts/hitl-loop.template.sh` structures repros only a human can click through. |
+| `codebase-design` | Designing or reshaping a module's interface; called by `tdd` | Vocabulary for **deep modules** (much behaviour behind a small interface): module, interface, depth, seam, adapter, leverage, locality, plus the deletion test. `references/DEEPENING.md` covers deepening a cluster given its dependencies; `references/DESIGN-IT-TWICE.md` has sub-agents design one interface several ways and compares them. Its examples are TypeScript; the ideas carry over to Python unchanged. |
+
 ### What is vendored
 
-Six prose files: `grill-with-docs/SKILL.md`, `domain-modeling/SKILL.md` with
-`GLOSSARY-FORMAT.md` and `ADR-FORMAT.md`, and `.claude/skills/writing-for-agents/SKILL.md` with
-`SKILL-MECHANICS.md`. Differences from upstream:
+The prose files of the ten skills above, plus `diagnosing-bugs/scripts/hitl-loop.template.sh`.
+Differences from upstream:
 
 - Each `SKILL.md` gains a `metadata` block naming the source, version and licence.
-- Upstream keeps sibling files beside `SKILL.md`; here they live in `references/`, and the links
-  in `SKILL.md` are rewritten to `references/<file>`. That is the path shape
-  `tests/test_skills.sh` checks, so a missing reference file fails the suite.
+- Upstream keeps sibling files beside `SKILL.md`; here they live in `references/`, the links
+  in `SKILL.md` are rewritten to `references/<file>`, and links back from a reference file
+  become `../SKILL.md`. That is the path shape `tests/test_skills.sh` checks, so a missing
+  reference file fails the suite.
 - `grill-with-docs/SKILL.md` gains one sentence: "Before the first round, state which of the
   two skills loaded." Upstream's docs report that the one-line router sometimes runs without
   loading its two dependencies (the tell is a question dump with no ➡️ recommendations) and that
   asking which skills loaded is the recovery. Saying it up front makes the failure visible.
 - `grill-with-docs` calls the built-in `anthropic-skills:grilling` instead of a vendored `grilling`.
+- `setup-matt-pocock-skills` gains the Azure DevOps option: `references/issue-tracker-ado.md`
+  (new), and in `SKILL.md` the remote check, the menu entry, the reachability check and the
+  template link.
+- `implement` and `tdd` name `code-review`, which resolves to the built-in `/code-review`
+  rather than upstream's two-axis review. Unchanged text; different skill behind the name.
 - `writing-for-agents` lives in this repo's `.claude/skills/`, so it loads only when working on
   these dotfiles rather than in every project.
 - `grilling` and `grill-me` are not vendored; the built-in `anthropic-skills:grilling` covers both.
+- `triage` is not vendored, so setup skips its triage-label section; `to-spec` and `to-tickets`
+  still tag their output `ready-for-agent`.
 - Upstream's `agents/openai.yaml` (Codex metadata) is left out.
 
-To update: re-copy the six files from `skills/productivity/writing-for-agents` (into
-`.claude/skills/`) and `skills/engineering/{grill-with-docs,domain-modeling}`, move the sibling
-files into `references/` and re-apply the path rewrites, re-add the metadata blocks, the one
-`grill-with-docs` sentence and the `anthropic-skills:grilling` name, then run `make test`.
+To update: re-copy `skills/productivity/writing-for-agents` (into `.claude/skills/`) and
+`skills/engineering/{grill-with-docs,domain-modeling,setup-matt-pocock-skills,to-spec,to-tickets,implement,tdd,diagnosing-bugs,codebase-design}`
+(into `skills/`). Move the sibling files into `references/` and re-apply the link rewrites,
+re-add the metadata blocks, the one `grill-with-docs` sentence, the `anthropic-skills:grilling`
+name and the Azure DevOps edits to `setup-matt-pocock-skills/SKILL.md` (keep
+`references/issue-tracker-ado.md`), then run `make test`. Diff upstream's
+`issue-tracker-github.md` against the previous version: a new operation there usually needs a
+matching line in the Azure DevOps template.
 
 ## Book to skill (virgiliojr94/book-to-skill)
 

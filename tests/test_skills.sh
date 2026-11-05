@@ -58,7 +58,7 @@ assert_skill_refs() {
       fail "$skill_name names $ref, which does not exist"
       missing=1
     fi
-  done < <(grep -oE '(scripts|references|assets|tools)/[A-Za-z0-9._-]+\.(ts|md|py)' "$skill_dir/SKILL.md" || true)
+  done < <(grep -oE '(scripts|references|assets|tools)/[A-Za-z0-9._-]+\.(ts|md|py|sh)' "$skill_dir/SKILL.md" || true)
   if [[ "$found" -eq 0 ]]; then
     fail "$skill_name — extracted no file references, so this test proved nothing"
   elif [[ "$missing" -eq 0 ]]; then
@@ -79,6 +79,15 @@ section "SKILL.md references"
 assert_skill_refs "$ROOT/skills/domain-modeling"             "domain-modeling/SKILL.md"
 assert_skill_refs "$ROOT/.claude/skills/writing-for-agents"  "writing-for-agents/SKILL.md"
 assert_skill_refs "$BTS"                                      "book-to-skill/SKILL.md"
+for s in tdd codebase-design diagnosing-bugs setup-matt-pocock-skills; do
+  assert_skill_refs "$ROOT/skills/$s" "$s/SKILL.md"
+done
+# setup copies the ADO template only if it exists; the link alone would not prove that.
+if grep -qF 'references/issue-tracker-ado.md' "$ROOT/skills/setup-matt-pocock-skills/SKILL.md"; then
+  ok "setup-matt-pocock-skills offers the Azure DevOps template"
+else
+  fail "setup-matt-pocock-skills no longer names references/issue-tracker-ado.md"
+fi
 
 section "invocation"
 # book-to-skill's description is long; keeping it out of the model's skill list
@@ -95,6 +104,29 @@ if grep -qF '"anthropic-skills:grilling"' "$GWD" && [[ -f "$ROOT/skills/domain-m
   ok "grill-with-docs calls anthropic-skills:grilling and a shipped domain-modeling"
 else
   fail "grill-with-docs names a skill that does not resolve"
+fi
+
+# The mattpocock workflow skills orchestrate and must run only when typed; the
+# disciplines they call stay model-invocable so the Skill tool can load them.
+for s in to-spec to-tickets implement setup-matt-pocock-skills; do
+  if frontmatter_has "$ROOT/skills/$s/SKILL.md" "disable-model-invocation: true"; then
+    ok "$s loads only on /$s"
+  else
+    fail "$s frontmatter lacks disable-model-invocation: true"
+  fi
+done
+for s in tdd codebase-design diagnosing-bugs domain-modeling; do
+  if frontmatter_has "$ROOT/skills/$s/SKILL.md" "disable-model-invocation: true"; then
+    fail "$s is invoke-only, so the skills that call it by name cannot load it"
+  else
+    ok "$s is model-invocable"
+  fi
+done
+# implement calls tdd (shipped here) and code-review (the built-in one).
+if grep -qF '"tdd"' "$ROOT/skills/implement/SKILL.md" && [[ -f "$ROOT/skills/tdd/SKILL.md" ]]; then
+  ok "implement calls a shipped tdd"
+else
+  fail "implement names a tdd skill that does not ship"
 fi
 
 section "book-to-skill extractor"
