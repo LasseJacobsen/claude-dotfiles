@@ -308,8 +308,11 @@ the unit on the board and in sprints:
 | Sprint | Picked per `/to-tickets` run: current sprint, a named one, or the team's backlog |
 
 `/to-tickets` shows each story's Tasks in the breakdown you approve, then asks for the sprint.
-`/implement` on a story sets it Active, works and closes its Tasks in order, and leaves the story
-Resolved for you to close. Setup records the organization, project, team and the team's area path
+`/implement` on a story sets it and its Tasks Active, implements and commits, runs the agentic
+`code-review`, then stops for your own review of the diff. Only once you approve does it set the
+Tasks done, open the PR linked to the story (Azure Repos via MCP, or `AB#<id>` on GitHub) and move
+the story to **Test**; closing the story stays with you. Setup reads the state names from the
+work item types, so a custom process works. Setup records the organization, project, team and the team's area path
 (read from the team settings, so stories land on the team's board), and checks that the MCP
 server can read the project. Tool names in the template match `microsoft/azure-devops-mcp` as of
 October 2026 (`wit_work_item`, `wit_work_item_write`, `wit_work_item_link_write`, …); for an older

@@ -6,7 +6,9 @@ Specs and tickets for this repo live as Azure DevOps work items. Use the Azure D
 - **Project**: `<project>`
 - **Team**: `<team>` (whose board and sprints the stories go on)
 - **Area path**: `<the team's area path>` (set on every work item you create, or it won't show on the team's board)
-- **Process**: Agile (Feature → User Story → Task; states New → Active → Resolved → Closed)
+- **Process**: Agile-based (Feature → User Story → Task)
+- **Story states**: `<New>` → `<Active>` (in progress) → `<Test>` (PR open) → closed by the user
+- **Task states**: `<New>` → `<Active>` (in progress) → `<Closed>` (done)
 
 The team works from the board and in sprints, both at the User Story level. The User Story is the unit that gets planned, pulled into a sprint and moved across the board; Tasks are the steps inside it.
 
@@ -48,6 +50,7 @@ These are the tool names in `microsoft/azure-devops-mcp` as of October 2026. Old
 - `wit_work_item_link_write`: links (action `link`, with link type `parent` or `predecessor`)
 - `wit_work_item_comment_write`: comments (action `add`)
 - `work`: sprints and team settings (actions `list_team_iterations`, `get_team_settings`)
+- `repo_pull_request_write`: pull requests in Azure Repos (action `create`, with `workItems`)
 
 Write long text fields (Description, Acceptance Criteria) with format `Markdown`.
 
@@ -57,8 +60,8 @@ Write long text fields (Description, Acceptance Criteria) with format `Markdown`
 - **Create Tasks under a story**: `wit_work_item_write` `add_child` with the story as `parentId`, `workItemType` `Task`, and the story's area and iteration paths.
 - **Read a work item**: `wit_work_item` `get` with expand `Relations`, then `list_comments`. The user may write a reference as `1234`, `#1234` or `AB#1234`; all three mean ID 1234.
 - **Make a work item a child of a parent**: `wit_work_item_link_write` `link` on the child, type `parent`, pointing at the parent ID.
-- **Blocking**: a **Predecessor** link, between stories only. On the blocked story, add a link of type `predecessor` pointing at the blocker. A story is unblocked when every predecessor is Resolved, Closed or Removed.
-- **Count open blockers**: `get` with expand `Relations`, collect the `System.LinkTypes.Dependency-Reverse` targets, `get_batch` them, and count those not in Resolved, Closed or Removed. Zero means startable.
+- **Blocking**: a **Predecessor** link, between stories only. On the blocked story, add a link of type `predecessor` pointing at the blocker. A story is unblocked when every predecessor is closed (Closed, Done or Removed). A predecessor in `Test` still blocks: its PR isn't merged yet.
+- **Count open blockers**: `get` with expand `Relations`, collect the `System.LinkTypes.Dependency-Reverse` targets, `get_batch` them, and count those not closed. Zero means startable.
 - **Comment**: `wit_work_item_comment_write` `add`.
 - **Labels**: triage labels are **tags**. Add one by appending it to `System.Tags` (tags are `; `-separated; keep the existing ones).
 - **Close**: add a comment explaining why, then set `System.State` to `Closed`. If the project's states differ, read them with `wit_work_item` `get_type` and use the closed-category state.
@@ -84,8 +87,14 @@ Read it as in **Read a work item** above. For a User Story, also read its parent
 
 ## When `/implement` works a User Story
 
-The board shows progress, so keep states current:
+The board shows progress, so keep states current. Tasks count as done only after both reviews, not when the code compiles.
 
-1. Before any code: assign the story to the user and set it to `Active`.
-2. Work the Tasks in order. Set each Task to `Active` when starting it and `Closed` when it is done. If the work needs a step no Task covers, add a Task for it rather than doing it silently.
-3. When the story's work is committed: set the story to `Resolved` and add a comment with the commit. Leave `Closed` to the user, who accepts the story.
+1. **Start**: assign the story to the user and set it to the story's in-progress state. Set each Task to its in-progress state as you start it. If the work needs a step no Task covers, add a Task for it rather than doing it silently.
+2. **Implement** the Tasks in order and commit, as `/implement` describes.
+3. **Agentic review**: the `code-review` run `/implement` ends with. Fix what it finds and commit.
+4. **Human self-review**: stop and ask the user to review the branch diff themselves. Give them the branch name, the commit range and a short list of what changed per Task. Apply their changes and ask again. Don't touch work item states and don't open a PR until the user says the review passed.
+5. **Done**: once the user approves, set every Task to its done state.
+6. **PR**: open the pull request and link it to the story.
+   - Code in **Azure Repos**: `repo_pull_request_write` `create` with the story ID in `workItems`.
+   - Code on **GitHub**: put `AB#<story id>` in the PR description; the Azure Boards integration links it.
+7. **Test**: set the story to its PR-open state (`Test`) and add a comment linking the PR. Leave closing the story to the user.
