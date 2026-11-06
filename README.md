@@ -23,8 +23,10 @@ claude-dotfiles/
 │   ├── domain-modeling/                # Vendored: GLOSSARY.md glossary + ADR discipline (see mattpocock/skills section)
 │   │   ├── SKILL.md
 │   │   └── references/                 #   GLOSSARY-FORMAT.md, ADR-FORMAT.md
+│   ├── grilling/
+│   │   └── SKILL.md                    # Vendored: the design-tree interview, automatic on "grill" phrases
 │   ├── grill-with-docs/
-│   │   └── SKILL.md                    # Vendored: /grill-with-docs, anthropic-skills:grilling + domain-modeling
+│   │   └── SKILL.md                    # Vendored: /grill-with-docs, grilling + domain-modeling
 │   ├── setup-matt-pocock-skills/       # Vendored: per-repo issue tracker setup (see mattpocock/skills section)
 │   │   ├── SKILL.md
 │   │   └── references/                 #   tracker templates incl. issue-tracker-ado.md (Azure DevOps), domain.md
@@ -211,10 +213,9 @@ If BurntToast is not installed, `notify.sh` silently falls through — no error.
 
 ## Skills
 
-`grilling` and `bro` are not vendored: the built-in `anthropic-skills:grilling` and `anthropic-skills:bro` cover them.
-
 | Skill | Trigger |
 |-------|---------|
+| `grilling` | Automatic on "grill" phrases — the design-tree interview |
 | `grill-with-docs` | Manual only — "/grill-with-docs", the same interview plus `GLOSSARY.md` and ADRs written as terms and decisions settle |
 | `domain-modeling` | Automatic when editing `GLOSSARY.md`, recording an ADR, or settling codebase terminology |
 | `setup-matt-pocock-skills` | Manual only — "/setup-matt-pocock-skills", once per repo: issue tracker (Azure DevOps supported) and domain-doc layout |
@@ -255,7 +256,7 @@ The two skills split writing from reviewing:
 
 ## mattpocock/skills
 
-Ten skills are vendored from [mattpocock/skills](https://github.com/mattpocock/skills) 1.3.2
+Eleven skills are vendored from [mattpocock/skills](https://github.com/mattpocock/skills) 1.3.2
 (MIT, Copyright (c) 2026 Matt Pocock). They fall into three groups: alignment before work starts
 (grilling, glossary), a spec → tickets → implement flow on your issue tracker (Azure DevOps
 included), and the disciplines that flow calls (TDD, debugging, module design). The rest of that
@@ -269,8 +270,8 @@ their body only when used.
 
 | Skill | Invocation | What it does |
 |-------|-----------|--------------|
-| `anthropic-skills:grilling` | Built in, not vendored. Automatic on "grill" phrases | The interview primitive. Maps the subject as a **design tree**, asks the whole **frontier** (every question whose prerequisites are settled) in one **round** as numbered ❓ questions each with a ➡️ recommended answer, then waits. Facts it looks up itself; decisions it puts to you. It stops when the frontier is empty and asks you to confirm the understanding is shared before acting. |
-| `grill-with-docs` | Manual only, `/grill-with-docs` | The same interview, pointed at a repo. Calls `anthropic-skills:grilling` and `domain-modeling`. |
+| `grilling` | Automatic on "grill" phrases | The interview primitive. Maps the subject as a **design tree**, asks the whole **frontier** (every question whose prerequisites are settled) in one **round** as numbered ❓ questions each with a ➡️ recommended answer, then waits. Facts it looks up itself; decisions it puts to you. It stops when the frontier is empty and asks you to confirm the understanding is shared before acting. |
+| `grill-with-docs` | Manual only, `/grill-with-docs` | The same interview, pointed at a repo. Calls `grilling` and `domain-modeling`. |
 | `domain-modeling` | Automatic on `GLOSSARY.md`, ADR, or terminology work | Writes each resolved term to a `GLOSSARY.md` glossary the moment it settles (root, or per-context via `GLOSSARY-MAP.md`), and offers an ADR under `docs/adr/NNNN-slug.md` only when a decision is hard to reverse, surprising without context, and a real trade-off. Formats live in its `references/`. |
 | `writing-for-agents` | Project-only; automatic when editing a `SKILL.md`, `CLAUDE.md`, or `AGENTS.md` in this repo | Reference for writing documents an agent consumes: context pointers, progressive disclosure, completion criteria, leading words, pruning. `references/SKILL-MECHANICS.md` covers frontmatter and model- vs user-invocation. |
 
@@ -341,7 +342,6 @@ Differences from upstream:
   two skills loaded." Upstream's docs report that the one-line router sometimes runs without
   loading its two dependencies (the tell is a question dump with no ➡️ recommendations) and that
   asking which skills loaded is the recovery. Saying it up front makes the failure visible.
-- `grill-with-docs` calls the built-in `anthropic-skills:grilling` instead of a vendored `grilling`.
 - `setup-matt-pocock-skills` gains the Azure DevOps option: `references/issue-tracker-ado.md`
   (new), and in `SKILL.md` the remote check, the menu entry, the reachability check and the
   template link.
@@ -352,16 +352,15 @@ Differences from upstream:
   rather than upstream's two-axis review. Unchanged text; different skill behind the name.
 - `writing-for-agents` lives in this repo's `.claude/skills/`, so it loads only when working on
   these dotfiles rather than in every project.
-- `grilling` and `grill-me` are not vendored; the built-in `anthropic-skills:grilling` covers both.
+- `grill-me` is not vendored; `grilling` covers it.
 - `triage` is not vendored, so setup skips its triage-label section; `to-spec` and `to-tickets`
   still tag their output `ready-for-agent`.
 - Upstream's `agents/openai.yaml` (Codex metadata) is left out.
 
-To update: re-copy `skills/productivity/writing-for-agents` (into `.claude/skills/`) and
-`skills/engineering/{grill-with-docs,domain-modeling,setup-matt-pocock-skills,to-spec,to-tickets,implement,tdd,diagnosing-bugs,codebase-design}`
+To update: re-copy `skills/productivity/writing-for-agents` (into `.claude/skills/`),
+`skills/productivity/grilling` and `skills/engineering/{grill-with-docs,domain-modeling,setup-matt-pocock-skills,to-spec,to-tickets,implement,tdd,diagnosing-bugs,codebase-design}`
 (into `skills/`). Move the sibling files into `references/` and re-apply the link rewrites,
-re-add the metadata blocks, the one `grill-with-docs` sentence, the `anthropic-skills:grilling`
-name, the two `to-tickets` lines and the Azure DevOps edits to `setup-matt-pocock-skills/SKILL.md` (keep
+re-add the metadata blocks, the one `grill-with-docs` sentence, the two `to-tickets` lines and the Azure DevOps edits to `setup-matt-pocock-skills/SKILL.md` (keep
 `references/issue-tracker-ado.md`), then run `make test`. Diff upstream's
 `issue-tracker-github.md` against the previous version: a new operation there usually needs a
 matching line in the Azure DevOps template.

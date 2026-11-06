@@ -104,11 +104,12 @@ if frontmatter_has "$BTS/SKILL.md" "disable-model-invocation: true"; then
 else
   fail "book-to-skill frontmatter lacks disable-model-invocation: true"
 fi
-# grill-with-docs calls two skills by name; both must resolve. grilling is the
-# built-in anthropic-skills one, domain-modeling ships here.
+# grill-with-docs calls two skills by name; both must ship here. There is no
+# built-in anthropic-skills:grilling to fall back on.
 GWD="$ROOT/skills/grill-with-docs/SKILL.md"
-if grep -qF '"anthropic-skills:grilling"' "$GWD" && [[ -f "$ROOT/skills/domain-modeling/SKILL.md" ]]; then
-  ok "grill-with-docs calls anthropic-skills:grilling and a shipped domain-modeling"
+if grep -qF '"grilling"' "$GWD" && [[ -f "$ROOT/skills/grilling/SKILL.md" ]] \
+   && [[ -f "$ROOT/skills/domain-modeling/SKILL.md" ]]; then
+  ok "grill-with-docs calls a shipped grilling and domain-modeling"
 else
   fail "grill-with-docs names a skill that does not resolve"
 fi
