@@ -19,3 +19,5 @@ Run typechecking regularly, single test files regularly, and the full test suite
 Once done, call the Skill tool with "code-review" to review the work.
 
 Commit your work to the current branch.
+
+Then call the Skill tool with "standards-review", passing the commit this branch started from as the fixed point. Fix what it finds and commit.
