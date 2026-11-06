@@ -34,6 +34,8 @@ claude-dotfiles/
 │   ├── tdd/                            # Vendored: red-green loop at agreed seams; references/ tests.md, mocking.md
 │   ├── diagnosing-bugs/                # Vendored: feedback-loop-first debugging; scripts/hitl-loop.template.sh
 │   ├── codebase-design/                # Vendored: deep-module vocabulary; references/ DEEPENING.md, DESIGN-IT-TWICE.md
+│   ├── retro/                          # Vendored: /retro, environment fixes after a hard session
+│   ├── writing-for-agents/             # Vendored: how to write SKILL.md / CLAUDE.md files; references/ SKILL-MECHANICS.md
 │   ├── iso-24495-code/
 │   │   └── SKILL.md                    # Vendored: plain-language rules for code (see Plain language section)
 │   ├── pyspark-style/
@@ -41,10 +43,6 @@ claude-dotfiles/
 │   ├── pyspark-audit/
 │   │   └── SKILL.md                    # Skill: audit .py files against pyspark-style (manual only)
 │   └── book-to-skill/                  # Vendored: document → skill converter (SKILL.md + Python extractor)
-├── .claude/skills/
-│   └── writing-for-agents/             # Vendored, project-only: how to write SKILL.md / CLAUDE.md files
-│       ├── SKILL.md
-│       └── references/                 #   SKILL-MECHANICS.md
 └── tests/
     ├── test_hooks.sh                   # Unit tests for all hooks
     ├── test_skills.sh                  # SKILL.md file references, invocation flags, book-to-skill extractor
@@ -223,7 +221,9 @@ If BurntToast is not installed, `notify.sh` silently falls through — no error.
 | `tdd` | Automatic on test-first work; called by `implement` |
 | `diagnosing-bugs` | Automatic on "diagnose", "debug this", or a report of something broken, failing or slow |
 | `codebase-design` | Automatic when designing a module's interface or deciding where a seam goes |
-| `writing-for-agents` | Project-only (this repo's `.claude/skills/`): automatic when creating or editing a `SKILL.md`, `CLAUDE.md`, or `AGENTS.md` here |
+| `standards-review` | Automatic on a standards or spec review of a branch; called by `implement` — checks against `CODING_STANDARDS.md` and the ticket |
+| `writing-for-agents` | Automatic when creating or editing a `SKILL.md`, `CLAUDE.md`, or `AGENTS.md`; called by `retro` |
+| `retro` | Manual only — "/retro", suggests environment fixes (checks, pointers, pruning) after a hard session |
 | `iso-24495-code` | Automatic on code readability (naming, structure) |
 | `pyspark-style` | Automatic on writing/restructuring PySpark code — column refs, joins, windows, chaining |
 | `pyspark-audit` | Manual only — "/pyspark-audit <file-or-dir>", checks existing files against `pyspark-style` |
@@ -256,11 +256,12 @@ The two skills split writing from reviewing:
 
 ## mattpocock/skills
 
-Eleven skills are vendored from [mattpocock/skills](https://github.com/mattpocock/skills) 1.3.2
-(MIT, Copyright (c) 2026 Matt Pocock). They fall into three groups: alignment before work starts
+Thirteen skills are vendored from [mattpocock/skills](https://github.com/mattpocock/skills) 1.3.2
+(MIT, Copyright (c) 2026 Matt Pocock). They fall into four groups: alignment before work starts
 (grilling, glossary), a spec → tickets → implement flow on your issue tracker (Azure DevOps
-included), and the disciplines that flow calls (TDD, debugging, module design). The rest of that
-repo (wayfinder, triage, implement-spec, its own code review, prototype, retro) is left out.
+included), the disciplines that flow calls (TDD, debugging, module design, standards review), and
+a retrospective afterwards. The rest of that repo (wayfinder, triage, implement-spec, prototype)
+is left out.
 
 **User-invoked** skills run only when typed, so they cost nothing until then. **Model-invoked**
 skills put their name and description (100–300 characters each) into every session and load
@@ -273,7 +274,7 @@ their body only when used.
 | `grilling` | Automatic on "grill" phrases | The interview primitive. Maps the subject as a **design tree**, asks the whole **frontier** (every question whose prerequisites are settled) in one **round** as numbered ❓ questions each with a ➡️ recommended answer, then waits. Facts it looks up itself; decisions it puts to you. It stops when the frontier is empty and asks you to confirm the understanding is shared before acting. |
 | `grill-with-docs` | Manual only, `/grill-with-docs` | The same interview, pointed at a repo. Calls `grilling` and `domain-modeling`. |
 | `domain-modeling` | Automatic on `GLOSSARY.md`, ADR, or terminology work | Writes each resolved term to a `GLOSSARY.md` glossary the moment it settles (root, or per-context via `GLOSSARY-MAP.md`), and offers an ADR under `docs/adr/NNNN-slug.md` only when a decision is hard to reverse, surprising without context, and a real trade-off. Formats live in its `references/`. |
-| `writing-for-agents` | Project-only; automatic when editing a `SKILL.md`, `CLAUDE.md`, or `AGENTS.md` in this repo | Reference for writing documents an agent consumes: context pointers, progressive disclosure, completion criteria, leading words, pruning. `references/SKILL-MECHANICS.md` covers frontmatter and model- vs user-invocation. |
+| `writing-for-agents` | Automatic when editing a `SKILL.md`, `CLAUDE.md`, or `AGENTS.md`; called by `retro` | Reference for writing documents an agent consumes: context pointers, progressive disclosure, completion criteria, leading words, pruning. `references/SKILL-MECHANICS.md` covers frontmatter and model- vs user-invocation. |
 
 Prefer one question at a time? Upstream's supported opt-out is a line in your global `CLAUDE.md`:
 
@@ -293,7 +294,7 @@ of starting a new one.
 | `setup-matt-pocock-skills` | Manual only, once per repo | Asks which issue tracker the repo uses (GitHub, GitLab, **Azure DevOps**, local markdown, or one you describe) and the domain-doc layout, then writes `docs/agents/issue-tracker.md` and `docs/agents/domain.md` and points an `## Agent skills` block in the repo's `CLAUDE.md` at them. The other three skills read those files. |
 | `to-spec` | Manual only, `/to-spec` | Turns the conversation so far into a spec (problem, solution, user stories, implementation and testing decisions, out of scope) and publishes it. No interview; it only confirms the test seams with you. |
 | `to-tickets` | Manual only, `/to-tickets [ref]` | Splits a spec into **tracer-bullet** tickets: each a thin end-to-end slice that fits one fresh context, with its blocking tickets named. Shows you the breakdown to adjust, then publishes blockers first. Wide refactors are sequenced as expand → migrate batches → contract. |
-| `implement` | Manual only, `/implement [ref]` | Builds a ticket or spec using `tdd` at the agreed seams, runs the tests, reviews with `code-review` (the built-in one) and commits. |
+| `implement` | Manual only, `/implement [ref]` | Builds a ticket or spec using `tdd` at the agreed seams, runs the tests, reviews with `code-review` (the built-in one, for bugs) and commits, then runs `standards-review` on the branch and commits its fixes. |
 
 **Azure DevOps** (`references/issue-tracker-ado.md`, added here; upstream has no Azure DevOps
 template) uses the Agile hierarchy through the Azure DevOps MCP server, with the User Story as
@@ -310,7 +311,7 @@ the unit on the board and in sprints:
 
 `/to-tickets` shows each story's Tasks in the breakdown you approve, then asks for the sprint.
 `/implement` on a story sets it and its Tasks Active, implements and commits, runs the agentic
-`code-review`, then stops for your own review of the diff. Only once you approve does it set the
+`code-review` and `standards-review`, then stops for your own review of the diff. Only once you approve does it set the
 Tasks done, open the PR linked to the story (Azure Repos via MCP, or `AB#<id>` on GitHub) and move
 the story to **Test**; closing the story stays with you. Setup reads the state names from the
 work item types, so a custom process works. Setup records the organization, project, team and the team's area path
@@ -327,10 +328,17 @@ story a Product Backlog Item; edit the generated `docs/agents/issue-tracker.md` 
 | `tdd` | "test-first", "red-green-refactor", integration tests; called by `implement` | Red → green one vertical slice at a time, only at seams you agreed up front. Covers what a good test is (behaviour through the public interface), and the anti-patterns: implementation-coupled, tautological (expected value recomputed the way the code does it), and horizontal slicing. `references/tests.md` and `references/mocking.md` hold the examples. |
 | `diagnosing-bugs` | "diagnose", "debug this", something broken, failing or slow | A gated loop: build a fast, deterministic command that goes red on *this* bug before forming any theory, minimise the repro, rank 3–5 falsifiable hypotheses, instrument one variable at a time with tagged logs, write the regression test before the fix, clean up. Performance regressions get a baseline measurement instead of logs. `scripts/hitl-loop.template.sh` structures repros only a human can click through. |
 | `codebase-design` | Designing or reshaping a module's interface; called by `tdd` | Vocabulary for **deep modules** (much behaviour behind a small interface): module, interface, depth, seam, adapter, leverage, locality, plus the deletion test. `references/DEEPENING.md` covers deepening a cluster given its dependencies; `references/DESIGN-IT-TWICE.md` has sub-agents design one interface several ways and compares them. Its examples are TypeScript; the ideas carry over to Python unchanged. |
+| `standards-review` | A standards or spec review of a branch; called by `implement` after it commits | Upstream's two-axis `code-review`, renamed so it doesn't clash with the built-in one. Takes the diff since a fixed point and runs two fresh sub-agents side by side. **Standards** checks it against every file documenting how code is written (always `CODING_STANDARDS.md` and `CONTRIBUTING.md` when present) plus a baseline of 12 Fowler code smells that the repo's own rules override. **Spec** checks it against the originating ticket or spec: missing, unrequested, or wrongly implemented requirements. It doesn't hunt bugs; the built-in `/code-review` does that. |
+
+### Retrospective
+
+| Skill | Invocation | What it does |
+|-------|-----------|--------------|
+| `retro` | Manual only, `/retro` | Reads a session's record (the current one by default) and proposes changes to the agent's **environment**, most severe first: navigation pointers, automated checks (a repo with no pre-commit hook or CI is itself a finding), coding-standard rules, pruning steering files, cheaper tools, wider information access. It only proposes; nothing changes until you pick a candidate. Loads `writing-for-agents` first. |
 
 ### What is vendored
 
-The prose files of the ten skills above, plus `diagnosing-bugs/scripts/hitl-loop.template.sh`.
+The prose files of the thirteen skills above, plus `diagnosing-bugs/scripts/hitl-loop.template.sh`.
 Differences from upstream:
 
 - Each `SKILL.md` gains a `metadata` block naming the source, version and licence.
@@ -348,19 +356,26 @@ Differences from upstream:
 - `to-tickets/SKILL.md` gains two lines: a **Tasks** entry in the breakdown shown for approval
   (only when the tracker doc gives tickets child tasks), and an **Azure DevOps** publish branch
   that defers to the tracker doc.
-- `implement` and `tdd` name `code-review`, which resolves to the built-in `/code-review`
-  rather than upstream's two-axis review. Unchanged text; different skill behind the name.
-- `writing-for-agents` lives in this repo's `.claude/skills/`, so it loads only when working on
-  these dotfiles rather than in every project.
+- Upstream's `code-review` is vendored as `standards-review`: `name` and `description` are
+  rewritten (the description is shorter and points bug-hunting at `code-review`), and the
+  metadata block records `source-name: code-review`. The body is unchanged.
+- `implement` keeps its `code-review` line, which now resolves to the built-in `/code-review`,
+  and gains one after the commit: call `standards-review` with the branch's starting commit as
+  the fixed point, then fix and commit. Upstream's review only sees committed work, hence after.
+  The Azure DevOps template's review step names both, and `tdd` points refactoring at
+  `standards-review`, where the smell baseline lives.
+- `retro` is unchanged. The judgement-call rules it puts in `CODING_STANDARDS.md` reach review
+  through `standards-review`.
 - `grill-me` is not vendored; `grilling` covers it.
 - `triage` is not vendored, so setup skips its triage-label section; `to-spec` and `to-tickets`
   still tag their output `ready-for-agent`.
 - Upstream's `agents/openai.yaml` (Codex metadata) is left out.
 
-To update: re-copy `skills/productivity/writing-for-agents` (into `.claude/skills/`),
-`skills/productivity/grilling` and `skills/engineering/{grill-with-docs,domain-modeling,setup-matt-pocock-skills,to-spec,to-tickets,implement,tdd,diagnosing-bugs,codebase-design}`
-(into `skills/`). Move the sibling files into `references/` and re-apply the link rewrites,
-re-add the metadata blocks, the one `grill-with-docs` sentence, the two `to-tickets` lines and the Azure DevOps edits to `setup-matt-pocock-skills/SKILL.md` (keep
+To update: re-copy `skills/productivity/{writing-for-agents,grilling}` and
+`skills/engineering/{grill-with-docs,domain-modeling,setup-matt-pocock-skills,to-spec,to-tickets,implement,tdd,diagnosing-bugs,codebase-design,retro}`
+into `skills/`, and `skills/engineering/code-review` into `skills/standards-review/`. Move the sibling files into `references/` and re-apply the link rewrites,
+re-add the metadata blocks, the one `grill-with-docs` sentence, the `standards-review` name and
+description, the `standards-review` lines in `implement`, `tdd` and the Azure DevOps template, the two `to-tickets` lines and the Azure DevOps edits to `setup-matt-pocock-skills/SKILL.md` (keep
 `references/issue-tracker-ado.md`), then run `make test`. Diff upstream's
 `issue-tracker-github.md` against the previous version: a new operation there usually needs a
 matching line in the Azure DevOps template.

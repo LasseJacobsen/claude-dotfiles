@@ -77,7 +77,7 @@ BTS="$ROOT/skills/book-to-skill"
 
 section "SKILL.md references"
 assert_skill_refs "$ROOT/skills/domain-modeling"             "domain-modeling/SKILL.md"
-assert_skill_refs "$ROOT/.claude/skills/writing-for-agents"  "writing-for-agents/SKILL.md"
+assert_skill_refs "$ROOT/skills/writing-for-agents"          "writing-for-agents/SKILL.md"
 assert_skill_refs "$BTS"                                      "book-to-skill/SKILL.md"
 for s in tdd codebase-design diagnosing-bugs setup-matt-pocock-skills; do
   assert_skill_refs "$ROOT/skills/$s" "$s/SKILL.md"
@@ -116,14 +116,14 @@ fi
 
 # The mattpocock workflow skills orchestrate and must run only when typed; the
 # disciplines they call stay model-invocable so the Skill tool can load them.
-for s in to-spec to-tickets implement setup-matt-pocock-skills; do
+for s in to-spec to-tickets implement setup-matt-pocock-skills retro; do
   if frontmatter_has "$ROOT/skills/$s/SKILL.md" "disable-model-invocation: true"; then
     ok "$s loads only on /$s"
   else
     fail "$s frontmatter lacks disable-model-invocation: true"
   fi
 done
-for s in tdd codebase-design diagnosing-bugs domain-modeling; do
+for s in tdd codebase-design diagnosing-bugs domain-modeling grilling writing-for-agents standards-review; do
   if frontmatter_has "$ROOT/skills/$s/SKILL.md" "disable-model-invocation: true"; then
     fail "$s is invoke-only, so the skills that call it by name cannot load it"
   else
@@ -135,6 +135,22 @@ if grep -qF '"tdd"' "$ROOT/skills/implement/SKILL.md" && [[ -f "$ROOT/skills/tdd
   ok "implement calls a shipped tdd"
 else
   fail "implement names a tdd skill that does not ship"
+fi
+# implement also runs standards-review, which must not take the built-in
+# code-review's name; retro's CODING_STANDARDS.md advice relies on it.
+SR="$ROOT/skills/standards-review/SKILL.md"
+if grep -qF '"standards-review"' "$ROOT/skills/implement/SKILL.md" && [[ -f "$SR" ]] \
+   && frontmatter_has "$SR" "name: standards-review" && grep -qF 'CODING_STANDARDS.md' "$SR"; then
+  ok "implement calls a shipped standards-review that reads CODING_STANDARDS.md"
+else
+  fail "implement's standards-review is missing, renamed, or no longer reads CODING_STANDARDS.md"
+fi
+# retro loads writing-for-agents first; it must ship in skills/ (installed
+# globally), not a project-only .claude/skills/, or /retro breaks elsewhere.
+if grep -qF '`writing-for-agents`' "$ROOT/skills/retro/SKILL.md" && [[ -f "$ROOT/skills/writing-for-agents/SKILL.md" ]]; then
+  ok "retro calls a globally shipped writing-for-agents"
+else
+  fail "retro names a writing-for-agents skill that is not in skills/"
 fi
 
 section "book-to-skill extractor"

@@ -91,7 +91,7 @@ The board shows progress, so keep states current. Tasks count as done only after
 
 1. **Start**: assign the story to the user and set it to the story's in-progress state. Set each Task to its in-progress state as you start it. If the work needs a step no Task covers, add a Task for it rather than doing it silently.
 2. **Implement** the Tasks in order and commit, as `/implement` describes.
-3. **Agentic review**: the `code-review` run `/implement` ends with. Fix what it finds and commit.
+3. **Agentic review**: the `code-review` and `standards-review` runs `/implement` ends with. Fix what they find and commit.
 4. **Human self-review**: stop and ask the user to review the branch diff themselves. Give them the branch name, the commit range and a short list of what changed per Task. Apply their changes and ask again. Don't touch work item states and don't open a PR until the user says the review passed.
 5. **Done**: once the user approves, set every Task to its done state.
 6. **PR**: open the pull request and link it to the story.
